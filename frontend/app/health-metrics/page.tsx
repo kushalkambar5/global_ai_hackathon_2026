@@ -221,9 +221,6 @@ export default function HealthMetricsPage() {
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="font-serif text-2xl md:text-3xl font-bold text-[#1C1B18] leading-tight">Health Metrics</h1>
-                <span className="text-[10px] font-bold uppercase px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  Database Synced
-                </span>
               </div>
               <p className="text-xs text-[#787363] font-sans mt-0.5">Biometrics, daily activity telemetry &amp; clinical logs</p>
             </div>

@@ -51,6 +51,9 @@ export function HeaderNav() {
       ? [{ href: "/tasks-diet", label: "Tasks & Diet" }]
       : []),
     { href: "/medical-history", label: "Medical History" },
+    ...(session?.user?.role === "PATIENT"
+      ? [{ href: "/conversations", label: "Conversations" }]
+      : []),
     { href: "/chat", label: "Clinical Chat" },
     ...(session?.user?.role === "PATIENT"
       ? [{ href: "/manage-doctors", label: "Manage Doctors" }]

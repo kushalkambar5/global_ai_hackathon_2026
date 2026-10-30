@@ -268,13 +268,6 @@ export default function TasksDietPage() {
         {/* Header */}
         <section className="relative overflow-hidden bg-gradient-to-br from-[#1C1B18] via-[#2A2925] to-[#1C1B18] dark:from-zinc-900 dark:via-zinc-950 dark:to-zinc-900 text-[#FAF9F5] border border-[#3E3A32] dark:border-zinc-800 p-7 rounded-[32px] shadow-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div className="space-y-1.5">
-            <div className="flex items-center gap-2">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-              </span>
-              <span className="text-[10px] font-bold tracking-widest text-white/60 uppercase">Your Health Plan</span>
-            </div>
             <h1 className="font-serif text-2xl sm:text-3xl font-bold tracking-tight text-white">Tasks & Diet</h1>
             <p className="text-xs text-white/60">Assigned by your doctor • Track your daily goals</p>
           </div>

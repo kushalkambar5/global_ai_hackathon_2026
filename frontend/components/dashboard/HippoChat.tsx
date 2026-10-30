@@ -217,20 +217,7 @@ export default function HippoChat({ fullHeight = false, patientId }: HippoChatPr
           <div>
             <div className="flex items-center gap-2">
               <h2 className="font-serif font-bold text-base text-[#1C1B18]">Hippo AI Assistant</h2>
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-100 text-emerald-800">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1 animate-pulse"></span>
-                Active Agent
-              </span>
             </div>
-            <p className="text-[11px] text-[#787363] font-sans flex items-center gap-1">
-              <span>{agentStatus}</span>
-              {activePatientId && (
-                <>
-                  <span>•</span>
-                  <span className="text-[#8C6B1F]">Patient Context Enabled</span>
-                </>
-              )}
-            </p>
           </div>
         </div>
 

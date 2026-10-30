@@ -1805,6 +1805,39 @@ router.post('/conversations/record', authenticateProxyUser, upload.single('audio
   }
 });
 
+router.get('/conversations/my', authenticateProxyUser, async (req, res) => {
+  try {
+    const patientId = req.user.id;
+    const convs = await db
+      .select({
+        conversationId: conversations.conversationId,
+        patientId: conversations.patientId,
+        doctorId: conversations.doctorId,
+        conversationTranscription: conversations.conversationTranscription,
+        conversationSummary: conversations.conversationSummary,
+        conversationMedication: conversations.conversationMedication,
+        conversationAudio: conversations.conversationAudio,
+        createdAt: conversations.createdAt,
+        updatedAt: conversations.updatedAt,
+        doctorName: users.fullName,
+        doctorEmail: users.email,
+        doctorImage: users.profileImageUrl,
+        doctorSpecialization: doctorProfiles.specialization,
+        hospitalAffiliation: doctorProfiles.hospitalAffiliation,
+      })
+      .from(conversations)
+      .leftJoin(doctorProfiles, eq(conversations.doctorId, doctorProfiles.id))
+      .leftJoin(users, eq(doctorProfiles.userId, users.id))
+      .where(eq(conversations.patientId, patientId))
+      .orderBy(desc(conversations.createdAt));
+
+    return res.json({ conversations: convs });
+  } catch (error) {
+    console.error('Get patient conversations error:', error);
+    return res.status(500).json({ error: error.message || 'Failed to get conversations.' });
+  }
+});
+
 router.get('/conversations/patient/:patientId', authenticateProxyUser, async (req, res) => {
   try {
     if (req.user.role !== 'DOCTOR') {
@@ -1825,15 +1858,36 @@ router.get('/conversations/patient/:patientId', authenticateProxyUser, async (re
 
 router.get('/conversations/:conversationId', authenticateProxyUser, async (req, res) => {
   try {
-    if (req.user.role !== 'DOCTOR') {
-      return res.status(403).json({ error: 'Doctors only.' });
-    }
     const { conversationId } = req.params;
     const [conv] = await db
-      .select()
+      .select({
+        conversationId: conversations.conversationId,
+        patientId: conversations.patientId,
+        doctorId: conversations.doctorId,
+        conversationTranscription: conversations.conversationTranscription,
+        conversationSummary: conversations.conversationSummary,
+        conversationMedication: conversations.conversationMedication,
+        conversationAudio: conversations.conversationAudio,
+        createdAt: conversations.createdAt,
+        updatedAt: conversations.updatedAt,
+        doctorName: users.fullName,
+        doctorEmail: users.email,
+        doctorImage: users.profileImageUrl,
+        doctorSpecialization: doctorProfiles.specialization,
+        hospitalAffiliation: doctorProfiles.hospitalAffiliation,
+      })
       .from(conversations)
+      .leftJoin(doctorProfiles, eq(conversations.doctorId, doctorProfiles.id))
+      .leftJoin(users, eq(doctorProfiles.userId, users.id))
       .where(eq(conversations.conversationId, conversationId));
+
     if (!conv) return res.status(404).json({ error: 'Conversation not found.' });
+
+    // Ensure only the doctor or the owner patient can access
+    if (req.user.role !== 'DOCTOR' && conv.patientId !== req.user.id) {
+      return res.status(403).json({ error: 'Access denied.' });
+    }
+
     return res.json(conv);
   } catch (error) {
     console.error('Get conversation error:', error);
