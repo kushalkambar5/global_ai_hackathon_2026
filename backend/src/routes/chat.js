@@ -95,7 +95,7 @@ const getPatientTasksTool = tool({
 
 const getMedicalReportsTool = tool({
   name: 'getMedicalReports',
-  description: 'Retrieve recent lab and imaging medical reports uploaded by the patient.',
+  description: 'Retrieve uploaded lab and imaging medical reports (PDFs/images manually uploaded by the patient or doctor). This tool ONLY covers the medical_reports table — it does NOT return AI model scan results (bone fracture, brain tumor, ECG, heart risk, skin, chest). Use getAIDetectedDiseases for AI scan results.',
   parameters: {
     type: 'object',
     properties: {
@@ -209,7 +209,7 @@ const getMedicalHistoryTool = tool({
 
 const getAIDetectedDiseasesTool = tool({
   name: 'getAIDetectedDiseases',
-  description: 'Retrieve history of AI-detected diseases and diagnostic scan results for the patient (bone fracture, brain tumor, ECG, heart risk, skin disease, chest X-ray pathologies).',
+  description: 'Retrieve AI model diagnostic scan results from the disease_scans table. Use this tool when the user asks about their disease scans, AI diagnoses, bone fracture, brain tumor, ECG, heart disease risk, skin disease, or chest X-ray results. Returns all scan types: BONE_FRACTURE, BRAIN_TUMOR, ECG, HEART, SKIN, CHEST. This is the ONLY tool that reads from the disease_scans table.',
   parameters: {
     type: 'object',
     properties: {
@@ -333,7 +333,7 @@ router.post('/', async (req, res) => {
             .from(diseaseScans)
             .where(eq(diseaseScans.patientId, patientId))
             .orderBy(desc(diseaseScans.createdAt))
-            .limit(10);
+            .limit(20);
 
           // 3. Fetch recent health metrics
           const metrics = await db
@@ -350,9 +350,36 @@ router.post('/', async (req, res) => {
             .where(and(eq(bodyMapConditions.patientId, patientId), eq(bodyMapConditions.isActive, true)));
 
           // Format AI Disease Scans into readable clinical summaries
+          // Group by scan type — non-HEART types (e.g. BONE_FRACTURE) get listed first
           let scanSummaries = [];
           if (scans.length > 0) {
-            for (const s of scans) {
+            // Sort: non-HEART scans first, then HEART scans (so BONE_FRACTURE etc. are never buried)
+            const sorted = [...scans].sort((a, b) => {
+              if (a.scanType === 'HEART' && b.scanType !== 'HEART') return 1;
+              if (a.scanType !== 'HEART' && b.scanType === 'HEART') return -1;
+              return new Date(b.createdAt) - new Date(a.createdAt);
+            });
+
+            // Build a unique-type digest at the top (most important for LLM to notice)
+            const uniqueTypes = {};
+            for (const s of sorted) {
+              if (!uniqueTypes[s.scanType]) uniqueTypes[s.scanType] = s;
+            }
+            const digestLines = Object.values(uniqueTypes).map(s => {
+              let diagnosis = 'Unknown';
+              if (s.predictionResult) {
+                if (s.predictionResult.diagnosis) diagnosis = s.predictionResult.diagnosis;
+                else if (s.predictionResult.diagnosis_result) diagnosis = s.predictionResult.diagnosis_result;
+                else if (s.predictionResult.tumor_found) diagnosis = 'Brain Tumor Detected';
+                else if (s.predictionResult.risk_prediction === 1) diagnosis = 'High Risk of Heart Disease';
+                else if (s.predictionResult.risk_prediction === 0) diagnosis = 'Low Risk of Heart Disease';
+                else diagnosis = JSON.stringify(s.predictionResult);
+              }
+              return `  → ${s.scanType}: ${diagnosis}`;
+            });
+            scanSummaries.push(`SCAN TYPE SUMMARY (${sorted.length} total scans across ${Object.keys(uniqueTypes).length} type(s)):\n${digestLines.join('\n')}`);
+
+            for (const s of sorted) {
               let diagnosis = 'Unknown / Normal';
               if (s.predictionResult) {
                 if (s.predictionResult.diagnosis) diagnosis = s.predictionResult.diagnosis;
@@ -363,7 +390,7 @@ router.post('/', async (req, res) => {
                 else diagnosis = typeof s.predictionResult === 'string' ? s.predictionResult : JSON.stringify(s.predictionResult);
               }
               scanSummaries.push(
-                `• [Scan Type: ${s.scanType}] Result/Diagnosis: ${diagnosis} | Status: ${s.status} | Date: ${s.createdAt ? new Date(s.createdAt).toISOString().slice(0, 10) : 'N/A'}\n` +
+                `• [Scan ID: ${s.id}] [Scan Type: ${s.scanType}] Result/Diagnosis: ${diagnosis} | Status: ${s.status} | Date: ${s.createdAt ? new Date(s.createdAt).toISOString().slice(0, 10) : 'N/A'}\n` +
                 `  - AI Explanation: ${s.aiExplanation || 'None'}\n` +
                 `  - Medicines Recommended: ${Array.isArray(s.medicines) && s.medicines.length > 0 ? s.medicines.join(', ') : 'None'}\n` +
                 `  - AI Suggestions: ${Array.isArray(s.aiSuggestions) && s.aiSuggestions.length > 0 ? s.aiSuggestions.join('; ') : 'None'}`
@@ -397,10 +424,11 @@ router.post('/', async (req, res) => {
 - Chronic Conditions: ${patient.chronicConditionsJson ? patient.chronicConditionsJson : 'None'}
 - Current Medications: ${patient.currentMedicationsJson ? patient.currentMedicationsJson : 'None'}
 
---- AI DISEASE DETECTION MODEL SCANS (${scans.length} scans found) ---
+--- AI DISEASE DETECTION MODEL SCANS (disease_scans table — ${scans.length} total scans found) ---
+IMPORTANT: These are AI model predictions, NOT manual uploads. Always include ALL scan types in your response when asked.
 ${scanSummaries.length > 0 ? scanSummaries.join('\n\n') : 'No AI disease detection scans found.'}
 
---- SUBMITTED MEDICAL & LAB REPORTS (${reports.length} reports found) ---
+--- SUBMITTED MEDICAL & LAB REPORTS (medical_reports table — ${reports.length} reports found) ---
 ${reportSummaries.length > 0 ? reportSummaries.join('\n\n') : 'No submitted medical reports found.'}
 
 --- RECENT HEALTH METRICS (${metrics.length} records) ---
@@ -425,10 +453,26 @@ STRICT CONCISENESS & BREVITY RULE:
 - For simple questions, deliver the answer in 2 to 4 crisp sentences or a tight bulleted list.
 - Get straight to the answer immediately.
 
-ACCESS TO PATIENT DIAGNOSTIC SCANS & REPORTS:
-- You have DIRECT ACCESS to all patient AI disease detection scans (Bone Fracture, Heart Disease Risk, Brain Tumor, ECG, Skin Disease, Chest X-ray) and all submitted lab/medical reports in the clinical record below.
-- Both AI scans (e.g. Bone Fracture marked "Fractured", Heart scan marked "High Risk") and uploaded medical reports (e.g. Lab/Ultrasound reports) are valid parts of their medical record.
-- When asked about their health, diagnostic scans, bone fracture, heart issues, or reports, directly state what their record shows with concise, helpful guidance.
+CRITICAL DATA SOURCE RULE — READ CAREFULLY:
+There are TWO completely separate data sources. NEVER mix them up:
+
+1. AI DISEASE DETECTION SCANS (from the "disease_scans" table):
+   - These are results from AI diagnostic models (Bone Fracture detection, Brain Tumor, ECG, Heart Disease Risk, Skin Disease, Chest X-ray).
+   - In the clinical record below, these appear under the section "AI DISEASE DETECTION MODEL SCANS".
+   - When the user asks about: "disease scans", "my scans", "AI scans", "fracture", "bone", "brain tumor", "ECG", "heart scan", "skin scan", "chest scan" → READ FROM THIS SECTION ONLY.
+   - To fetch more, use the getAIDetectedDiseases tool.
+
+2. UPLOADED MEDICAL & LAB REPORTS (from the "medical_reports" table):
+   - These are manually uploaded files by the patient or doctor (PDFs, lab results, radiology reports).
+   - In the clinical record below, these appear under the section "SUBMITTED MEDICAL & LAB REPORTS".
+   - When the user asks about: "medical reports", "lab reports", "uploaded reports", "documents" → READ FROM THIS SECTION ONLY.
+   - To fetch more, use the getMedicalReports tool.
+
+NEVER return medical_reports data when the user asks for disease scans. NEVER return disease_scans data when the user asks for medical reports.
+
+ACCESS TO PATIENT DATA:
+- You have DIRECT ACCESS to all patient AI disease detection scans and submitted lab/medical reports in the clinical record below.
+- When asked about health, scans, or reports, directly state what their record shows.
 
 STRICT NAME & ID DISPLAY RULE:
 - When displaying or mentioning the patient's name, ALWAYS write ONLY their full name (e.g., "${patientName || 'Patient'}").
