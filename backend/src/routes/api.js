@@ -1792,6 +1792,7 @@ router.post('/conversations/record', authenticateProxyUser, upload.single('audio
     const [inserted] = await db.insert(conversations).values({
       patientId,
       doctorId: doctor.id,
+      conversationTranscription: transcript || null,
       conversationSummary,
       conversationMedication,
       conversationAudio: audioUrl,

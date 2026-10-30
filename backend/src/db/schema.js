@@ -238,6 +238,7 @@ export const conversations = pgTable('conversations', {
   conversationId: uuid('conversation_id').primaryKey().defaultRandom(),
   patientId: uuid('patient_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   doctorId: uuid('doctor_id').notNull().references(() => doctorProfiles.id, { onDelete: 'cascade' }),
+  conversationTranscription: text('conversation_transcription'),
   conversationSummary: text('conversation_summary'),
   conversationMedication: text('conversation_medication').array(),
   conversationAudio: varchar('conversation_audio', { length: 512 }),

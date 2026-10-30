@@ -494,6 +494,10 @@ export default function PatientsDashboard() {
       setTdShowTaskForm(false);
       setTdEditDiet(null);
       setTdTaskHistories({});
+      setConvList([]);
+      setConvAudioBlob(null);
+      setConvAudioUrl(null);
+      setConvRecording(false);
       // reset forms
       setMetricForm({
         metricDate: new Date().toISOString().split("T")[0],
@@ -918,6 +922,7 @@ export default function PatientsDashboard() {
                 { id: "scans", label: "AI Disease Scans", icon: "biotech" },
                 { id: "reports", label: "Reports & Rx", icon: "description" },
                 { id: "tasks-diet", label: "Tasks & Diet", icon: "task_alt" },
+                { id: "conversations", label: "Conversations", icon: "mic" },
                 { id: "chat", label: "Consultation Chat", icon: "forum" },
               ].map((tab) => {
                 const isActive = activeTab === tab.id;
@@ -927,6 +932,7 @@ export default function PatientsDashboard() {
                     onClick={() => {
                       setActiveTab(tab.id as any);
                       if (tab.id === "tasks-diet" && selectedPatientId) fetchTdData(selectedPatientId);
+                      if (tab.id === "conversations" && selectedPatientId) fetchConversations(selectedPatientId);
                     }}
                     className={`py-3.5 px-4 font-sans text-xs font-bold border-b-2 flex items-center gap-2 cursor-pointer transition-all ${
                       isActive
@@ -2201,6 +2207,192 @@ export default function PatientsDashboard() {
                       </div>
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* TAB: CONVERSATIONS */}
+              {activeTab === "conversations" && (
+                <div className="max-w-3xl space-y-6">
+                  {/* Toast */}
+                  {convToast && (
+                    <div className={`fixed top-6 right-6 z-50 px-4 py-3 rounded-2xl text-xs font-bold shadow-lg transition-all ${
+                      convToast.ok ? "bg-emerald-600 text-white" : "bg-red-600 text-white"
+                    }`}>
+                      {convToast.msg}
+                    </div>
+                  )}
+
+                  {/* Recording Section */}
+                  <div className="bg-[#FAF9F5] border border-[#E6E1D3] rounded-3xl p-6 space-y-5">
+                    <div className="flex items-center justify-between border-b border-[#FAF6E8] pb-3">
+                      <div>
+                        <h4 className="font-serif text-base font-bold text-[#1C1B18]">Record Consultation</h4>
+                        <p className="text-[10px] text-[#787363] mt-0.5">Record the doctor-patient conversation. Audio will be transcribed and analyzed by AI.</p>
+                      </div>
+                      <div className={`w-3 h-3 rounded-full ${
+                        convRecording ? "bg-red-500 animate-pulse" : "bg-[#DCD5C5]"
+                      }`} />
+                    </div>
+
+                    {/* Controls */}
+                    <div className="flex items-center gap-3">
+                      {!convRecording ? (
+                        <button
+                          onClick={handleStartRecording}
+                          disabled={convLoading}
+                          className="flex items-center gap-2 px-5 py-2.5 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-xs font-bold uppercase rounded-2xl transition-all cursor-pointer shadow-sm"
+                        >
+                          <MaterialIcon name="mic" className="text-sm" />
+                          Start Recording
+                        </button>
+                      ) : (
+                        <button
+                          onClick={handleStopRecording}
+                          className="flex items-center gap-2 px-5 py-2.5 bg-[#1C1B18] hover:bg-[#2A2925] text-white text-xs font-bold uppercase rounded-2xl transition-all cursor-pointer shadow-sm"
+                        >
+                          <MaterialIcon name="stop" className="text-sm" />
+                          Stop Recording
+                        </button>
+                      )}
+
+                      {convRecording && (
+                        <span className="flex items-center gap-2 text-red-600 text-xs font-bold">
+                          <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                          Recording...
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Audio Preview */}
+                    {convAudioUrl && !convRecording && (
+                      <div className="space-y-3">
+                        <p className="text-[10px] font-bold text-[#787363] uppercase">Preview Recording</p>
+                        <audio controls src={convAudioUrl} className="w-full h-10" />
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => handleSubmitRecording(selectedPatient.id)}
+                            disabled={convLoading}
+                            className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold uppercase rounded-2xl transition-all cursor-pointer"
+                          >
+                            <MaterialIcon name="upload" className="text-sm" />
+                            {convLoading ? "Processing..." : "Submit & Analyze"}
+                          </button>
+                          <button
+                            onClick={() => { setConvAudioBlob(null); setConvAudioUrl(null); }}
+                            className="px-4 py-2.5 border border-[#E6E1D3] text-[#787363] text-[10px] font-bold uppercase rounded-2xl hover:border-red-300 hover:text-red-600 transition-all cursor-pointer"
+                          >
+                            Discard
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Conversations List */}
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h5 className="font-serif text-sm font-bold text-[#1C1B18]">Past Conversations</h5>
+                      <button
+                        onClick={() => selectedPatientId && fetchConversations(selectedPatientId)}
+                        className="px-3 py-1.5 border border-[#E6E1D3] text-[#787363] text-[10px] font-bold uppercase rounded-xl hover:border-[#8C6B1F] hover:text-[#8C6B1F] transition-all cursor-pointer flex items-center gap-1"
+                      >
+                        <MaterialIcon name="refresh" className="text-xs" />
+                        Refresh
+                      </button>
+                    </div>
+
+                    {convListLoading ? (
+                      <div className="py-10 flex items-center justify-center gap-2">
+                        <svg className="animate-spin h-5 w-5 text-[#8C6B1F]" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                        </svg>
+                        <span className="text-xs text-[#787363]">Loading conversations...</span>
+                      </div>
+                    ) : convList.length === 0 ? (
+                      <div className="text-center py-12 text-[#787363] bg-[#FAF9F5] border border-[#E6E1D3] rounded-3xl">
+                        <MaterialIcon name="mic_off" className="text-4xl opacity-30 block mb-2" />
+                        <p className="text-xs font-medium">No conversations recorded yet.</p>
+                        <p className="text-[10px] mt-1">Use the recorder above to capture and analyze consultations.</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {convList.map((conv: any) => (
+                          <div key={conv.conversationId} className="bg-white border border-[#E6E1D3] rounded-3xl overflow-hidden shadow-xs">
+                            {/* Header */}
+                            <div className="flex items-center justify-between px-5 py-4 border-b border-[#F6F4EF] bg-[#FAF9F5]">
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-xl bg-[#EAF3FB] border border-[#C8DEF5] flex items-center justify-center">
+                                  <MaterialIcon name="record_voice_over" className="text-[#1C5396] text-sm" />
+                                </div>
+                                <div>
+                                  <p className="text-xs font-bold text-[#1C1B18]">
+                                    Consultation — {new Date(conv.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                                  </p>
+                                  <p className="text-[9px] text-[#787363] font-mono">
+                                    {new Date(conv.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+                                  </p>
+                                </div>
+                              </div>
+                              {conv.conversationAudio && (
+                                <a
+                                  href={conv.conversationAudio}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex items-center gap-1 px-3 py-1.5 border border-[#C8DEF5] text-[#1C5396] text-[9px] font-bold uppercase rounded-xl hover:bg-[#EAF3FB] transition-all"
+                                >
+                                  <MaterialIcon name="volume_up" className="text-xs" />
+                                  Audio
+                                </a>
+                              )}
+                            </div>
+
+                            {/* Summary */}
+                            {conv.conversationSummary && (
+                              <div className="px-5 py-4 border-b border-[#F6F4EF]">
+                                <p className="text-[9px] font-bold text-[#787363] uppercase mb-2">Conversation Summary</p>
+                                <p className="text-xs text-[#1C1B18] leading-relaxed">{conv.conversationSummary}</p>
+                              </div>
+                            )}
+
+                            {/* Transcription */}
+                            {conv.conversationTranscription && (
+                              <div className="px-5 py-3 border-b border-[#F6F4EF] bg-[#FAF9F5]/60">
+                                <details className="group cursor-pointer">
+                                  <summary className="flex items-center justify-between text-[9px] font-bold text-[#787363] uppercase list-none select-none">
+                                    <span className="flex items-center gap-1.5">
+                                      <MaterialIcon name="subtitles" className="text-xs text-[#8C6B1F]" />
+                                      Exact Deepgram Transcription
+                                    </span>
+                                    <span className="text-[9px] text-[#8C6B1F] group-open:rotate-180 transition-transform">
+                                      ▼
+                                    </span>
+                                  </summary>
+                                  <div className="mt-2.5 p-3 rounded-xl bg-white border border-[#E6E1D3] text-xs text-[#1C1B18] leading-relaxed font-mono whitespace-pre-wrap">
+                                    {conv.conversationTranscription}
+                                  </div>
+                                </details>
+                              </div>
+                            )}
+
+                            {/* Medications */}
+                            {conv.conversationMedication && conv.conversationMedication.length > 0 && (
+                              <div className="px-5 py-4">
+                                <p className="text-[9px] font-bold text-[#787363] uppercase mb-2">Medications Mentioned</p>
+                                <div className="flex flex-wrap gap-2">
+                                  {conv.conversationMedication.map((med: string, idx: number) => (
+                                    <span key={idx} className="text-[10px] font-bold px-3 py-1 bg-amber-50 border border-amber-200 text-amber-800 rounded-full">
+                                      {med}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 
