@@ -1,0 +1,15 @@
+fastapi
+uvicorn
+python-multipart
+pydantic
+ultralytics
+torch>=2.0.0
+torchvision
+xgboost
+pandas
+numpy
+torchxrayvision
+scikit-image
+scikit-learn
+python-dotenv
+
