@@ -11,6 +11,7 @@ import {
   healthMetrics,
   medicalReports,
   doctorPatientChats,
+  conversations,
 } from '../db/schema.js';
 import { eq, desc, and } from 'drizzle-orm';
 import { uploadToR2 } from '../utils/r2.js';
@@ -1705,6 +1706,137 @@ router.post('/chat/doctor-patient', authenticateProxyUser, async (req, res) => {
   } catch (error) {
     console.error('[Send Chat Error]', error);
     return res.status(500).json({ message: error.message || 'Failed to send message.' });
+  }
+});
+
+// ==========================================
+// CONVERSATIONS
+// ==========================================
+
+router.post('/conversations/record', authenticateProxyUser, upload.single('audio'), async (req, res) => {
+  try {
+    if (req.user.role !== 'DOCTOR') {
+      return res.status(403).json({ error: 'Doctors only.' });
+    }
+    const { patientId } = req.body;
+    if (!patientId || !req.file) {
+      return res.status(400).json({ error: 'patientId and audio file are required.' });
+    }
+
+    // Get doctor profile
+    const [doctor] = await db.select().from(doctorProfiles).where(eq(doctorProfiles.userId, req.user.id));
+    if (!doctor) return res.status(404).json({ error: 'Doctor profile not found.' });
+
+    // 1. Upload audio to R2
+    const audioUrl = await uploadToR2(
+      req.file.buffer,
+      req.file.originalname || 'recording.webm',
+      req.file.mimetype || 'audio/webm',
+      'conversation-audio'
+    );
+
+    // 2. Transcribe with Deepgram
+    let transcript = '';
+    try {
+      const dgRes = await fetch('https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Token 2fe17a1b181cea86689add388db030752bed67f6',
+          'Content-Type': req.file.mimetype || 'audio/webm',
+        },
+        body: req.file.buffer,
+      });
+      if (dgRes.ok) {
+        const dgData = await dgRes.json();
+        transcript = dgData?.results?.channels?.[0]?.alternatives?.[0]?.transcript || '';
+      }
+    } catch (dgErr) {
+      console.error('Deepgram transcription error:', dgErr);
+    }
+
+    // 3. LLM analysis
+    let conversationSummary = transcript ? `Consultation transcript: ${transcript.substring(0, 200)}...` : 'No transcript available.';
+    let conversationMedication = [];
+
+    if (transcript) {
+      try {
+        const llmRes = await fetch(process.env.OPENAI_BASE_URL + '/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: process.env.OPENAI_MODEL || 'llama-3.3-70b-versatile',
+            messages: [
+              { role: 'system', content: 'You are a medical assistant. Respond ONLY with raw JSON, no markdown.' },
+              { role: 'user', content: `Analyze this doctor-patient conversation transcript and extract: 1) A concise medical summary 2) A list of medications mentioned.\n\nTranscript:\n${transcript}\n\nRespond ONLY with raw JSON: {"summary": "...", "medications": ["med1", "med2"]}` }
+            ],
+            temperature: 0.2,
+          }),
+        });
+        if (llmRes.ok) {
+          const llmData = await llmRes.json();
+          let content = llmData.choices?.[0]?.message?.content || '{}';
+          content = content.replace(/```json/g, '').replace(/```/g, '').trim();
+          const parsed = JSON.parse(content);
+          if (parsed.summary) conversationSummary = parsed.summary;
+          if (Array.isArray(parsed.medications)) conversationMedication = parsed.medications;
+        }
+      } catch (llmErr) {
+        console.error('LLM analysis error:', llmErr);
+      }
+    }
+
+    // 4. Insert into conversations table
+    const [inserted] = await db.insert(conversations).values({
+      patientId,
+      doctorId: doctor.id,
+      conversationSummary,
+      conversationMedication,
+      conversationAudio: audioUrl,
+    }).returning();
+
+    return res.json(inserted);
+  } catch (error) {
+    console.error('Conversation record error:', error);
+    return res.status(500).json({ error: error.message || 'Failed to record conversation.' });
+  }
+});
+
+router.get('/conversations/patient/:patientId', authenticateProxyUser, async (req, res) => {
+  try {
+    if (req.user.role !== 'DOCTOR') {
+      return res.status(403).json({ error: 'Doctors only.' });
+    }
+    const { patientId } = req.params;
+    const convs = await db
+      .select()
+      .from(conversations)
+      .where(eq(conversations.patientId, patientId))
+      .orderBy(desc(conversations.createdAt));
+    return res.json({ conversations: convs });
+  } catch (error) {
+    console.error('Get conversations error:', error);
+    return res.status(500).json({ error: error.message || 'Failed to get conversations.' });
+  }
+});
+
+router.get('/conversations/:conversationId', authenticateProxyUser, async (req, res) => {
+  try {
+    if (req.user.role !== 'DOCTOR') {
+      return res.status(403).json({ error: 'Doctors only.' });
+    }
+    const { conversationId } = req.params;
+    const [conv] = await db
+      .select()
+      .from(conversations)
+      .where(eq(conversations.conversationId, conversationId));
+    if (!conv) return res.status(404).json({ error: 'Conversation not found.' });
+    return res.json(conv);
+  } catch (error) {
+    console.error('Get conversation error:', error);
+    return res.status(500).json({ error: error.message || 'Failed to get conversation.' });
   }
 });
 

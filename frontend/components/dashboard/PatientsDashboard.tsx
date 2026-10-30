@@ -87,7 +87,7 @@ export default function PatientsDashboard() {
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
 
   // Tabs for the selected patient workspace
-  const [activeTab, setActiveTab] = useState<"profile" | "metrics" | "scans" | "reports" | "chat" | "tasks-diet">("profile");
+  const [activeTab, setActiveTab] = useState<"profile" | "metrics" | "scans" | "reports" | "chat" | "tasks-diet" | "conversations">("profile");
 
   // --- ACTIONS LOADING STATES ---
   const [saveLoading, setSaveLoading] = useState(false);
@@ -189,6 +189,17 @@ export default function PatientsDashboard() {
   });
   const [tdExpandedTask, setTdExpandedTask] = useState<string | null>(null);
   const [tdTaskHistories, setTdTaskHistories] = useState<Record<string, any[]>>({});
+
+  // --- TAB: CONVERSATIONS STATE ---
+  const [convRecording, setConvRecording] = useState(false);
+  const [convMediaRecorder, setConvMediaRecorder] = useState<MediaRecorder | null>(null);
+  const [convAudioChunks, setConvAudioChunks] = useState<Blob[]>([]);
+  const [convLoading, setConvLoading] = useState(false);
+  const [convList, setConvList] = useState<any[]>([]);
+  const [convListLoading, setConvListLoading] = useState(false);
+  const [convToast, setConvToast] = useState<{ msg: string; ok: boolean } | null>(null);
+  const [convAudioBlob, setConvAudioBlob] = useState<Blob | null>(null);
+  const [convAudioUrl, setConvAudioUrl] = useState<string | null>(null);
 
   const tdShowToast = (msg: string, ok = true) => {
     setTdToast({ msg, ok });
@@ -357,6 +368,81 @@ export default function PatientsDashboard() {
       tdShowToast(e.message, false);
     } finally {
       setTdActionLoading(false);
+    }
+  };
+
+  const showConvToast = (msg: string, ok = true) => {
+    setConvToast({ msg, ok });
+    setTimeout(() => setConvToast(null), 4000);
+  };
+
+  const fetchConversations = async (patientId: string) => {
+    setConvListLoading(true);
+    try {
+      const res = await fetch(`/api/conversations/patient/${patientId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setConvList(data.conversations || []);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setConvListLoading(false);
+    }
+  };
+
+  const handleStartRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+      const chunks: Blob[] = [];
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunks.push(e.data);
+      };
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(chunks, { type: 'audio/webm' });
+        setConvAudioBlob(blob);
+        setConvAudioUrl(URL.createObjectURL(blob));
+        setConvAudioChunks([]);
+        stream.getTracks().forEach(t => t.stop());
+      };
+      setConvAudioChunks(chunks);
+      setConvMediaRecorder(mediaRecorder);
+      mediaRecorder.start();
+      setConvRecording(true);
+    } catch (e: any) {
+      showConvToast('Microphone access denied: ' + e.message, false);
+    }
+  };
+
+  const handleStopRecording = () => {
+    if (convMediaRecorder && convMediaRecorder.state !== 'inactive') {
+      convMediaRecorder.stop();
+      setConvRecording(false);
+    }
+  };
+
+  const handleSubmitRecording = async (patientId: string) => {
+    if (!convAudioBlob) return;
+    setConvLoading(true);
+    try {
+      const fd = new FormData();
+      fd.append('patientId', patientId);
+      fd.append('audio', convAudioBlob, 'recording.webm');
+      const res = await fetch('/api/conversations/record', {
+        method: 'POST',
+        body: fd,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || data.message || 'Failed to process recording');
+      showConvToast('Conversation recorded and analyzed!');
+      setConvAudioBlob(null);
+      setConvAudioUrl(null);
+      fetchConversations(patientId);
+    } catch (e: any) {
+      showConvToast(e.message, false);
+    } finally {
+      setConvLoading(false);
     }
   };
 

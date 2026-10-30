@@ -234,3 +234,13 @@ export const doctorPatientChats = pgTable('doctor_patient_chats', {
   unqDoctorPatientChat: unique('unq_doctor_patient_chat').on(t.doctorId, t.patientId)
 }));
 
+export const conversations = pgTable('conversations', {
+  conversationId: uuid('conversation_id').primaryKey().defaultRandom(),
+  patientId: uuid('patient_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  doctorId: uuid('doctor_id').notNull().references(() => doctorProfiles.id, { onDelete: 'cascade' }),
+  conversationSummary: text('conversation_summary'),
+  conversationMedication: text('conversation_medication').array(),
+  conversationAudio: varchar('conversation_audio', { length: 512 }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
