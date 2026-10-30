@@ -65,7 +65,6 @@ export function HeaderNav() {
     { href: "#interactive-showcase", label: "Live AI Demos" },
     { href: "#diagnostic-suite", label: "Diagnostic AI" },
     { href: "#doctor-portal", label: "Doctor Verification" },
-    { href: "#medical-team", label: "Our Experts" },
     { href: "#reviews", label: "Reviews" },
   ];
 
@@ -73,7 +72,7 @@ export function HeaderNav() {
     <header className="sticky top-0 z-50 w-full bg-[#F6F4EF]/90 dark:bg-[#141311]/90 backdrop-blur-md border-b border-[#E6E1D3]/60 dark:border-zinc-800/80 transition-all">
       <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-2 lg:gap-4">
         {/* Brand Logo */}
-        <Link href="/" className="flex items-center gap-2.5 shrink-0 group">
+        <Link href={status === "authenticated" ? "/dashboard" : "/"} className="flex items-center gap-2.5 shrink-0 group">
           <div className="relative w-8 h-8 rounded-lg overflow-hidden bg-[#FAF6E8] dark:bg-zinc-800 p-0.5 shadow-xs border border-[#E8E2CF] dark:border-zinc-700 group-hover:scale-105 transition-transform">
             <Image
               src="/logo.png"

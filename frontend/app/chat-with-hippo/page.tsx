@@ -35,21 +35,12 @@ export default function ChatWithHippoPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#F6F4EF] text-[#1C1B18]">
+    <div className="h-screen h-[100dvh] flex flex-col bg-[#F6F4EF] text-[#1C1B18] overflow-hidden">
       <HeaderNav />
       {/* Chat fills remaining viewport height */}
-      <main className="flex-1 flex flex-col w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="flex items-center gap-3 mb-4">
-          <span className="material-symbols-outlined text-2xl text-[#8C6B1F]">forum</span>
-          <div>
-            <h1 className="font-serif text-3xl font-bold text-[#1C1B18] leading-tight">Chat with Hippo</h1>
-            <p className="text-xs text-[#787363] font-sans mt-0.5">
-              Your personal clinical AI — powered by OpenAI Agent SDK & Groq LLM
-            </p>
-          </div>
-        </div>
+      <main className="flex-1 min-h-0 flex flex-col w-full max-w-5xl mx-auto px-3 sm:px-6 lg:px-8 py-3 sm:py-4 md:py-6 overflow-hidden">
         {/* HippoChat stretches to fill remaining height */}
-        <div className="flex-1 flex flex-col min-h-0">
+        <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
           <HippoChat fullHeight />
         </div>
       </main>

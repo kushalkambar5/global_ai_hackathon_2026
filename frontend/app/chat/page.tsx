@@ -4,7 +4,6 @@ import React, { useState, useEffect, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { HeaderNav } from "@/components/HeaderNav";
-import { Footer } from "@/components/Footer";
 import { MaterialIcon } from "@/components/ui/MaterialIcon";
 
 interface Message {
@@ -300,41 +299,17 @@ function ChatContent() {
   );
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#F6F4EF] text-[#1C1B18] font-sans">
+    <div className="h-screen h-[100dvh] flex flex-col bg-[#F6F4EF] text-[#1C1B18] font-sans overflow-hidden">
       <HeaderNav />
 
-      <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col gap-6">
-        {/* Page Header */}
-        <section className="bg-[#FAF9F5] border border-[#E6E1D3] p-5 rounded-[24px] shadow-2xs shrink-0 flex items-center justify-between">
-          <div className="flex items-center gap-3.5">
-            <div className="w-10 h-10 rounded-xl bg-[#FAF6E8] border border-[#E6E1D3] flex items-center justify-center">
-              <MaterialIcon name="forum" className="text-xl text-[#8C6B1F]" />
-            </div>
-            <div>
-              <h1 className="font-serif text-xl font-bold text-[#1C1B18] leading-tight">
-                {isDoctor ? "Patient Consultations" : "Chat with My Doctor"}
-              </h1>
-              <p className="text-[11px] text-[#787363]">
-                {isDoctor
-                  ? "Direct, encrypted clinical communication with your patients"
-                  : "Private messaging channel with your assigned physician"}
-              </p>
-            </div>
-          </div>
-          <span className="hidden sm:flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-widest text-emerald-600 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-full">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            Live Sync Active
-          </span>
-        </section>
-
+      <main className="flex-1 min-h-0 w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-3 sm:py-4 md:py-6 flex flex-col overflow-hidden">
         {/* Chat System */}
         <div
-          className="flex-1 bg-white border border-[#E6E1D3] rounded-[32px] overflow-hidden flex shadow-xs"
-          style={{ minHeight: "560px", maxHeight: "680px" }}
+          className="flex-1 min-h-0 w-full bg-white border border-[#E6E1D3] rounded-[24px] sm:rounded-[32px] overflow-hidden flex shadow-xs"
         >
           {/* LEFT SIDEBAR — DOCTOR OR PATIENT */}
-          <div className="w-72 border-r border-[#E6E1D3] flex flex-col bg-[#FAF9F5] shrink-0">
-            <div className="p-4 border-b border-[#E6E1D3] bg-white">
+          <div className="w-64 sm:w-72 border-r border-[#E6E1D3] flex flex-col bg-[#FAF9F5] shrink-0 h-full min-h-0 overflow-hidden">
+            <div className="p-4 border-b border-[#E6E1D3] bg-white shrink-0">
               <p className="text-[10px] font-bold uppercase tracking-wider text-[#787363] mb-2">
                 {isDoctor ? `My Patients (${patientsList.length})` : `My Doctors (${doctorsList.length})`}
               </p>
@@ -352,7 +327,7 @@ function ChatContent() {
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-2 space-y-1">
+            <div className="flex-1 min-h-0 overflow-y-auto p-2 space-y-1">
               {sidebarLoading ? (
                 <div className="py-12 flex flex-col items-center justify-center gap-2">
                   <svg className="animate-spin h-5 w-5 text-[#8C6B1F]" fill="none" viewBox="0 0 24 24">
@@ -442,7 +417,7 @@ function ChatContent() {
           </div>
 
           {/* MAIN CHAT PANE */}
-          <div className="flex-1 flex flex-col min-w-0">
+          <div className="flex-1 min-h-0 flex flex-col min-w-0 h-full overflow-hidden">
             {noDoctorAssigned ? (
               <div className="flex-1 flex flex-col items-center justify-center p-10 text-center bg-gradient-to-b from-[#FAF9F5] to-white">
                 <div className="w-20 h-20 rounded-full bg-[#FAF6E8] border-2 border-[#E6E1D3] flex items-center justify-center mb-5 shadow-inner">
@@ -519,7 +494,7 @@ function ChatContent() {
                 {/* Messages */}
                 <div
                   ref={messagesContainerRef}
-                  className="flex-1 overflow-y-auto p-6 space-y-5 bg-[#FAFAF9]"
+                  className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 space-y-5 bg-[#FAFAF9]"
                 >
                   {messages.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-center text-[#787363] py-10">
@@ -587,7 +562,7 @@ function ChatContent() {
                 {/* Input */}
                 <form
                   onSubmit={handleSendMessage}
-                  className="px-5 py-4 border-t border-[#E6E1D3] bg-white flex gap-3 shrink-0"
+                  className="px-4 sm:px-5 py-3 sm:py-4 border-t border-[#E6E1D3] bg-white flex gap-3 shrink-0"
                 >
                   <input
                     type="text"
@@ -622,8 +597,6 @@ function ChatContent() {
           </div>
         </div>
       </main>
-
-      <Footer />
     </div>
   );
 }

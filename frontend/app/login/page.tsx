@@ -43,11 +43,11 @@ function LoginForm() {
           if (!session.user.onboardingComplete) {
             router.push("/onboarding");
           } else {
-            router.push("/");
+            router.push("/dashboard");
           }
           router.refresh();
         } else {
-          router.push("/");
+          router.push("/dashboard");
           router.refresh();
         }
       }

@@ -415,7 +415,7 @@ function PartTimelinePanel({
   const totalCount = matchedScans.length + matchedReports.length;
 
   return (
-    <div className="space-y-3 overflow-y-auto pr-1 flex-1" style={{ maxHeight: "320px" }}>
+    <div className="space-y-3 overflow-y-auto pr-1 flex-1 min-h-0">
       {/* Hint banner when no specific organ is selected */}
       {!selectedPartId && !showAll && (
         <div className="flex items-center gap-2 bg-[#FAF6E8] border border-[#E6D89A] rounded-xl px-3 py-2 mb-1">
@@ -882,7 +882,7 @@ export default function BodyVisualizer() {
   const progressPercent = ((stage - 1) / (maxStages - 1)) * 100;
 
   return (
-    <div className="flex flex-col xl:flex-row min-h-[700px] w-full bg-[#FAF9F5] border border-[#E6E1D3] rounded-[32px] overflow-hidden shadow-xs relative">
+    <div className="flex flex-col xl:flex-row h-full min-h-0 w-full bg-[#FAF9F5] border border-[#E6E1D3] rounded-[24px] sm:rounded-[32px] overflow-hidden shadow-xs relative">
       {/* Tooltip */}
       {tooltip.visible && (
         <div
@@ -895,9 +895,9 @@ export default function BodyVisualizer() {
 
 
       {/* ── Body Viewer ─────────────────────────────────────────────────────── */}
-      <section className="flex-1 min-h-[500px] flex flex-col items-center justify-start pt-4 pb-6 px-6 relative overflow-hidden bg-radial from-[#F4E071]/5 to-transparent">
+      <section className="flex-1 min-h-0 flex flex-col items-center justify-between py-2 sm:py-3 px-3 sm:px-6 relative overflow-hidden bg-radial from-[#F4E071]/5 to-transparent">
         {/* ── 5 Keyframe Quick-Select Tabs ── */}
-        <div className="flex gap-1.5 mb-4 z-20 flex-wrap justify-center">
+        <div className="flex gap-1.5 mb-2 z-20 flex-wrap justify-center shrink-0">
           {KEYFRAME_STAGES.map((kf) => {
             const isKfActive = mode === "keyframe" && stage === kf.stage;
             return (
@@ -930,7 +930,7 @@ export default function BodyVisualizer() {
         />
 
         {selectedPart && (
-          <div className="mb-4 flex items-center gap-2 bg-[#1C1B18]/90 text-white px-3 py-1.5 rounded-full text-[10px] font-bold font-sans z-20 backdrop-blur-sm transition-all duration-200">
+          <div className="mb-2 flex items-center gap-2 bg-[#1C1B18]/90 text-white px-3 py-1.5 rounded-full text-[10px] font-bold font-sans z-20 backdrop-blur-sm transition-all duration-200 shrink-0">
             <span>{selectedPart.emoji}</span>
             <span>{selectedPart.name} selected</span>
             <button
@@ -942,15 +942,15 @@ export default function BodyVisualizer() {
           </div>
         )}
 
-        <div className="flex flex-col md:flex-row items-center justify-center gap-8 w-full max-w-3xl mt-4 relative z-10">
+        <div className="flex flex-col md:flex-row items-center justify-center gap-4 lg:gap-8 w-full flex-1 min-h-0 relative z-10">
           {/* Organ Selector (Left Side) */}
           {isInternalOrgansActive && (
-            <div className="w-full md:w-56 bg-white/75 backdrop-blur-md border border-[#E6E1D3] rounded-2xl p-4 flex flex-col gap-2 shadow-xs z-20 md:self-start md:mt-6 transition-all duration-300">
-              <p className="text-[10px] font-bold text-[#4D493E] uppercase tracking-wider mb-1 font-sans flex items-center gap-1.5">
+            <div className="w-full md:w-52 lg:w-56 bg-white/75 backdrop-blur-md border border-[#E6E1D3] rounded-2xl p-3 flex flex-col gap-2 shadow-xs z-20 md:self-center max-h-[180px] md:max-h-[min(460px,calc(100vh-14rem))] overflow-hidden transition-all duration-300 shrink-0">
+              <p className="text-[10px] font-bold text-[#4D493E] uppercase tracking-wider mb-1 font-sans flex items-center gap-1.5 shrink-0">
                 <span className="material-symbols-outlined text-[14px]">view_cozy</span>
                 Select Organ
               </p>
-              <div className="grid grid-cols-2 md:grid-cols-1 gap-1.5 max-h-[300px] md:max-h-[500px] overflow-y-auto pr-1">
+              <div className="grid grid-cols-2 md:grid-cols-1 gap-1.5 overflow-y-auto pr-1 flex-1 min-h-0">
                 {INTERNAL_ORGANS_LIST.map((organ) => {
                   const stageItem = DETAILED_STAGES.find((s) => s.id === organ.id);
                   if (!stageItem) return null;
@@ -975,7 +975,7 @@ export default function BodyVisualizer() {
           )}
 
           {/* Body Model Relative Stack Container */}
-          <div className="relative w-[300px] h-[500px] sm:w-[340px] sm:h-[580px] shrink-0">
+          <div className="relative w-[260px] h-[400px] sm:w-[300px] sm:h-[460px] lg:w-[340px] lg:h-[520px] max-h-full shrink-0 flex items-center justify-center">
             {DETAILED_STAGES.map((stageItem) => {
               const visible = isLayerVisible(stageItem);
               const isPulse = pulseLayer === stageItem.stage;
@@ -1062,9 +1062,9 @@ export default function BodyVisualizer() {
       </section>
 
       {/* ── Right Panel ─────────────────────────────────────────────────────── */}
-      <aside className="w-full xl:w-80 border-t xl:border-t-0 xl:border-l border-[#E6E1D3] bg-[#FAF9F5] flex flex-col shrink-0 overflow-hidden">
+      <aside className="w-full xl:w-80 border-t xl:border-t-0 xl:border-l border-[#E6E1D3] bg-[#FAF9F5] flex flex-col shrink-0 h-full min-h-0 overflow-hidden">
         {/* Right panel tab switcher */}
-        <div className="flex gap-1.5 p-3 border-b border-[#E6E1D3] bg-white/60">
+        <div className="flex gap-1.5 p-3 border-b border-[#E6E1D3] bg-white/60 shrink-0">
           <button
             onClick={() => setRightTab("timeline")}
             className={`flex-1 py-2 rounded-xl text-[10px] font-bold uppercase tracking-wide transition-all cursor-pointer flex items-center justify-center gap-1 font-sans ${
@@ -1114,8 +1114,8 @@ export default function BodyVisualizer() {
           }
 
           return (
-            <div className="flex-1 p-4 flex flex-col overflow-hidden">
-              <div className="text-[10px] font-bold text-[#4D493E] uppercase tracking-wider mb-3 font-sans flex items-center gap-1.5">
+            <div className="flex-1 min-h-0 p-4 flex flex-col overflow-hidden">
+              <div className="text-[10px] font-bold text-[#4D493E] uppercase tracking-wider mb-3 font-sans flex items-center gap-1.5 shrink-0">
                 <span className="material-symbols-outlined text-sm text-[#8C6B1F]">timeline</span>
                 {isFullBodyActive ? allTitle : (selectedPart ? `${selectedPart.name} — History` : "Organ Timeline")}
               </div>
@@ -1135,27 +1135,29 @@ export default function BodyVisualizer() {
 
         {/* Report New Problem section */}
         {rightTab === "report" && (
-          <div className="flex-1 p-4 overflow-y-auto">
-            <div className="text-[10px] font-bold text-[#4D493E] uppercase tracking-wider mb-1 font-sans flex items-center gap-1.5">
+          <div className="flex-1 min-h-0 p-4 overflow-y-auto flex flex-col">
+            <div className="text-[10px] font-bold text-[#4D493E] uppercase tracking-wider mb-1 font-sans flex items-center gap-1.5 shrink-0">
               <span className="material-symbols-outlined text-sm text-[#8C6B1F]">add_circle</span>
               Report New Problem
             </div>
-            <p className="text-[9px] text-[#787363] font-sans mb-3 leading-relaxed">
+            <p className="text-[9px] text-[#787363] font-sans mb-3 leading-relaxed shrink-0">
               Log a symptom, upload a scan image or PDF, or describe a condition. It will appear in your Medical History.
             </p>
-            <ReportNewProblemForm
-              selectedPart={selectedPart}
-              onSuccess={() => {
-                // Refresh medical records
-                fetch("/api/medical-history")
-                  .then((r) => r.json())
-                  .then((d) => {
-                    setMedScans(d.scans || []);
-                    setMedReports(d.reports || []);
-                  })
-                  .catch(() => {});
-              }}
-            />
+            <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+              <ReportNewProblemForm
+                selectedPart={selectedPart}
+                onSuccess={() => {
+                  // Refresh medical records
+                  fetch("/api/medical-history")
+                    .then((r) => r.json())
+                    .then((d) => {
+                      setMedScans(d.scans || []);
+                      setMedReports(d.reports || []);
+                    })
+                    .catch(() => {});
+                }}
+              />
+            </div>
           </div>
         )}
       </aside>

@@ -4,7 +4,6 @@ import React, { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { HeaderNav } from "@/components/HeaderNav";
-import { Footer } from "@/components/Footer";
 import DiseaseDetector from "@/components/dashboard/DiseaseDetector";
 
 export default function DetectDiseasePage() {
@@ -36,19 +35,11 @@ export default function DetectDiseasePage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#F6F4EF] text-[#1C1B18]">
+    <div className="h-screen h-[100dvh] flex flex-col bg-[#F6F4EF] text-[#1C1B18] overflow-hidden">
       <HeaderNav />
-      <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-        <div className="flex items-center gap-3">
-          <span className="material-symbols-outlined text-2xl text-[#8C6B1F]">biotech</span>
-          <div>
-            <h1 className="font-serif text-3xl font-bold text-[#1C1B18] leading-tight">Detect Disease</h1>
-            <p className="text-xs text-[#787363] font-sans mt-0.5">AI-powered clinical diagnostic analysis</p>
-          </div>
-        </div>
+      <main className="flex-1 min-h-0 w-full max-w-7xl mx-auto p-2 sm:p-4 md:p-6 overflow-hidden flex flex-col">
         <DiseaseDetector />
       </main>
-      <Footer />
     </div>
   );
 }

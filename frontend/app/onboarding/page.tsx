@@ -15,7 +15,7 @@ export default function OnboardingPage() {
     if (status === "unauthenticated") {
       router.push("/login");
     } else if (status === "authenticated" && session?.user?.onboardingComplete) {
-      router.push("/");
+      router.push("/dashboard");
     }
   }, [status, session, router]);
 
@@ -172,8 +172,8 @@ export default function OnboardingPage() {
         picture: data.user.profileImageUrl || selectedAvatar,
       });
 
-      // Redirect home
-      router.push("/");
+      // Redirect to dashboard
+      router.push("/dashboard");
       router.refresh();
     } catch (err: any) {
       setError(err.message || "An error occurred while saving profile details.");

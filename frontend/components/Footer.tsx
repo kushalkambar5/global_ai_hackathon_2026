@@ -4,8 +4,16 @@ import React from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { MaterialIcon } from "@/components/ui/MaterialIcon";
+import { useSession } from "next-auth/react";
 
 export function Footer() {
+  const { data: session, status } = useSession();
+
+  // If the user is signed in, do not display the footer
+  if (status === "authenticated") {
+    return null;
+  }
+
   return (
     <footer className="w-full bg-[#1C1B18] text-white pt-16 pb-12 border-t border-[#33312B]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">

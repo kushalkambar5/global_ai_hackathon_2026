@@ -62,6 +62,7 @@ export default function RootLayout({
             sparkRadius={15}
             sparkCount={8}
             duration={400}
+            className="flex-1 flex flex-col min-h-0 w-full"
           >
             {children}
           </ClickSpark>

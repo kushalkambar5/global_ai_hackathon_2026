@@ -388,11 +388,11 @@ export default function DiseaseDetector() {
   ];
 
   return (
-    <div className="w-full bg-[#FAF9F5] border border-[#E6E1D3] rounded-[32px] overflow-hidden shadow-xs flex flex-col md:flex-row min-h-[680px]">
+    <div className="w-full h-full min-h-0 bg-[#FAF9F5] border border-[#E6E1D3] rounded-[24px] sm:rounded-[32px] overflow-hidden shadow-xs flex flex-col md:flex-row">
       
       {/* Sidebar - Choose model */}
-      <aside className="w-full md:w-80 p-6 border-b md:border-b-0 md:border-r border-[#E6E1D3] bg-[#FAF9F5] flex flex-col gap-6">
-        <div className="space-y-1">
+      <aside className="w-full md:w-72 lg:w-80 p-4 md:p-6 border-b md:border-b-0 md:border-r border-[#E6E1D3] bg-[#FAF9F5] flex flex-col gap-4 overflow-y-auto shrink-0">
+        <div className="space-y-1 shrink-0">
           <h3 className="font-serif text-lg font-bold text-[#1C1B18] flex items-center gap-2">
             <span className="w-1.5 h-5 bg-[#8C6B1F] rounded-full" />
             AI Diagnostic Suite
@@ -438,7 +438,7 @@ export default function DiseaseDetector() {
       </aside>
 
       {/* Main Testing Workbench */}
-      <section className="flex-1 p-6 md:p-8 flex flex-col justify-between">
+      <section className="flex-1 min-h-0 p-4 md:p-6 lg:p-8 flex flex-col overflow-y-auto justify-between">
         
         {/* Workspace Form */}
         <div className="space-y-6">

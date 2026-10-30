@@ -4,7 +4,6 @@ import React, { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { HeaderNav } from "@/components/HeaderNav";
-import { Footer } from "@/components/Footer";
 import BodyVisualizer from "@/components/dashboard/BodyVisualizer";
 
 export default function VisualizeBodyPage() {
@@ -36,23 +35,11 @@ export default function VisualizeBodyPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#F6F4EF] text-[#1C1B18]">
+    <div className="h-screen h-[100dvh] flex flex-col bg-[#F6F4EF] text-[#1C1B18] overflow-hidden">
       <HeaderNav />
-      <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-        <div className="flex items-center gap-3">
-          <span className="material-symbols-outlined text-2xl text-[#8C6B1F]">accessibility_new</span>
-          <div>
-            <h1 className="font-serif text-3xl font-bold text-[#1C1B18] leading-tight">Visualize Your Body</h1>
-            <div className="flex flex-col sm:flex-row sm:items-center gap-2 mt-1">
-              <p className="text-xs text-[#787363] font-sans">Interactive 3D anatomical layer explorer</p>
-              <span className="hidden sm:inline text-xs text-[#DCD5C5]">•</span>
-              <p className="text-xs text-[#8C6B1F] font-sans font-medium">Click on a any part to see its medical reports</p>
-            </div>
-          </div>
-        </div>
+      <main className="flex-1 min-h-0 w-full max-w-[1600px] mx-auto p-2 sm:p-4 overflow-hidden flex flex-col">
         <BodyVisualizer />
       </main>
-      <Footer />
     </div>
   );
 }

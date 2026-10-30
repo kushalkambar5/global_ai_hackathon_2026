@@ -1,4 +1,7 @@
 import React from "react";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { redirect } from "next/navigation";
 import { HeaderNav } from "@/components/HeaderNav";
 import { HeroSection } from "@/components/HeroSection";
 import { MarqueeTicker } from "@/components/MarqueeTicker";
@@ -8,7 +11,12 @@ import { InteractiveFeatureShowcase } from "@/components/InteractiveFeatureShowc
 import { DiagnosticSuiteDark } from "@/components/DiagnosticSuiteDark";
 import { Footer } from "@/components/Footer";
 
-export default function Home() {
+export default async function Home() {
+  const session = await getServerSession(authOptions);
+  if (session?.user) {
+    redirect("/dashboard");
+  }
+
   return (
     <div className="min-h-screen flex flex-col bg-[#F6F4EF] text-[#1C1B18] selection:bg-[#F4E071] selection:text-[#1C1B18]">
       {/* Navigation Header */}

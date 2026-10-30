@@ -204,12 +204,12 @@ export default function HippoChat({ fullHeight = false, patientId }: HippoChatPr
 
   return (
     <div
-      className={`w-full bg-[#FAF9F5] border border-[#E6E1D3] rounded-[32px] overflow-hidden shadow-xs flex flex-col ${
-        fullHeight ? "flex-1 min-h-0" : "h-[650px]"
+      className={`w-full bg-[#FAF9F5] border border-[#E6E1D3] rounded-[24px] sm:rounded-[32px] overflow-hidden shadow-xs flex flex-col ${
+        fullHeight ? "flex-1 min-h-0 h-full" : "h-[650px]"
       }`}
     >
       {/* Top Header Bar */}
-      <div className="px-6 py-4 bg-[#F2EFE9] border-b border-[#E6E1D3] flex items-center justify-between">
+      <div className="px-4 sm:px-6 py-3 sm:py-4 bg-[#F2EFE9] border-b border-[#E6E1D3] flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-2xl bg-[#8C6B1F]/10 text-[#8C6B1F] flex items-center justify-center font-bold shadow-xs">
             <span className="material-symbols-outlined text-2xl">smart_toy</span>
@@ -224,7 +224,7 @@ export default function HippoChat({ fullHeight = false, patientId }: HippoChatPr
         {messages.length > 0 && (
           <button
             onClick={handleClearChat}
-            className="text-xs font-medium text-[#787363] hover:text-[#1C1B18] px-3 py-1.5 rounded-xl hover:bg-[#EAE6DD] transition-colors flex items-center gap-1.5"
+            className="text-xs font-medium text-[#787363] hover:text-[#1C1B18] px-3 py-1.5 rounded-xl hover:bg-[#EAE6DD] transition-colors flex items-center gap-1.5 cursor-pointer"
             title="Clear conversation"
           >
             <span className="material-symbols-outlined text-base">refresh</span>
@@ -234,7 +234,7 @@ export default function HippoChat({ fullHeight = false, patientId }: HippoChatPr
       </div>
 
       {/* Main Chat Messages Window */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-4 font-sans bg-[#FAF9F5]">
+      <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 space-y-4 font-sans bg-[#FAF9F5]">
         {messages.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center max-w-md mx-auto py-12">
             <div className="w-16 h-16 rounded-3xl bg-[#8C6B1F]/10 text-[#8C6B1F] flex items-center justify-center mb-4">
@@ -327,7 +327,7 @@ export default function HippoChat({ fullHeight = false, patientId }: HippoChatPr
       </div>
 
       {/* Input Form Bar */}
-      <div className="p-4 bg-[#F2EFE9] border-t border-[#E6E1D3]">
+      <div className="p-3 sm:p-4 bg-[#F2EFE9] border-t border-[#E6E1D3] shrink-0">
         <form
           onSubmit={(e) => {
             e.preventDefault();
