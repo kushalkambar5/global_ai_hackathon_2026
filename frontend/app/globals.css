@@ -111,6 +111,9 @@
 .text-\[\#1C1B18\] {
   color: var(--text-app) !important;
 }
+.text-\[\#38352E\] {
+  color: var(--text-app) !important;
+}
 
 /* Card Backgrounds */
 .bg-\[\#FAF6E8\] {

@@ -23,9 +23,9 @@ export function MarqueeTicker() {
       {features.map((item, idx) => (
         <span
           key={idx}
-          className="inline-flex items-center gap-3 px-8 font-medium tracking-wide text-[#38352E] text-2xl sm:text-3xl md:text-4xl select-none"
+          className="inline-flex items-center gap-3 px-8 font-medium tracking-wide text-[#38352E] dark:text-zinc-100 text-2xl sm:text-3xl md:text-4xl select-none transition-colors"
         >
-          <MaterialIcon name={item.icon} className="text-2xl sm:text-3xl md:text-4xl text-[#8C6B1F]" />
+          <MaterialIcon name={item.icon} className="text-2xl sm:text-3xl md:text-4xl text-[#8C6B1F] dark:text-[#F4E071] transition-colors" />
           <span>{item.text}</span>
         </span>
       ))}
@@ -33,7 +33,7 @@ export function MarqueeTicker() {
   );
 
   return (
-    <div className="w-full bg-[#F6F4EF] py-6 border-y border-[#E6E1D3] overflow-hidden my-4">
+    <div className="w-full bg-[#F6F4EF] dark:bg-[#181714] py-6 border-y border-[#E6E1D3] dark:border-zinc-800/80 overflow-hidden my-4 transition-colors">
       <ScrollVelocity
         texts={[marqueeContent]}
         velocity={160}
