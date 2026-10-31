@@ -9,6 +9,7 @@ import apiRoutes from './src/routes/api.js';
 import tasksRoutes from './src/routes/tasks.js';
 import dietRoutes from './src/routes/diet.js';
 import chatRoutes from './src/routes/chat.js';
+import medicationRoutes from './src/routes/medication.js';
 import { initDb } from './src/db/init.js';
 import { initChatWebSocket } from './src/chatSocket.js';
 
@@ -40,6 +41,7 @@ app.use('/api/upload', uploadRoutes);
 app.use('/api/tasks', tasksRoutes);
 app.use('/api/diet', dietRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/medication', medicationRoutes);
 app.use('/api', apiRoutes);
 
 // Initialize database (create if missing, migrate, and seed) then start server

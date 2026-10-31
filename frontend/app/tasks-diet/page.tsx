@@ -63,7 +63,7 @@ export default function TasksDietPage() {
   const router = useRouter();
   const { data: session, status } = useSession();
 
-  const [view, setView] = useState<"tasks" | "diet">("tasks");
+  const [view, setView] = useState<"tasks" | "diet" | "medication">("tasks");
   const [tasks, setTasks] = useState<Task[]>([]);
   const [dietPlans, setDietPlans] = useState<DietPlan[]>([]);
   const [loading, setLoading] = useState(true);
@@ -73,6 +73,19 @@ export default function TasksDietPage() {
   const [historyLoading, setHistoryLoading] = useState<string | null>(null);
   const [markingDone, setMarkingDone] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const [medResult, setMedResult] = useState<{
+    similarity_score: number;
+    similarity_pct: number;
+    is_close: boolean;
+    prediction_label: number;
+    status: string;
+    medication_taken: boolean;
+    verdict: string;
+    patternDate: string;
+  } | null>(null);
+  const [medLoading, setMedLoading] = useState(false);
+  const [medSyncing, setMedSyncing] = useState(false);
+  const [medError, setMedError] = useState<string | null>(null);
 
   const showToast = (msg: string, ok = true) => {
     setToast({ msg, ok });
@@ -195,6 +208,12 @@ export default function TasksDietPage() {
       const res = await fetch(`/api/tasks/sync-history/${session?.user?.id}`, { method: "POST" });
       if (!res.ok) throw new Error("Sync failed");
       showToast("Goal tasks synced with wearable data!");
+      // Also seed medication patterns (stubbed from training set until real watch data exists)
+      try {
+        await fetch(`/api/medication/sync/${session?.user?.id}`, { method: "POST" });
+      } catch (e) {
+        console.error("Medication sync failed:", e);
+      }
       // Refresh task history for expanded task
       if (expandedTask) fetchHistory(expandedTask);
     } catch (e: any) {
@@ -203,6 +222,62 @@ export default function TasksDietPage() {
       setSyncing(false);
     }
   };
+
+  const checkMedication = async () => {
+    if (!session?.user?.id) return;
+    setMedLoading(true);
+    setMedError(null);
+    try {
+      const res = await fetch(`/api/medication/check/${session.user.id}`, { method: "POST" });
+      const text = await res.text();
+      let data: any = null;
+      try {
+        data = text ? JSON.parse(text) : null;
+      } catch {
+        throw new Error(
+          `Medication check failed (HTTP ${res.status}): server returned a non-JSON page. Restart the backend so /api/medication routes load, and ensure the AI service is running on port 8000.`
+        );
+      }
+      if (!res.ok) throw new Error(data?.error || data?.message || `Medication check failed (HTTP ${res.status})`);
+      setMedResult(data);
+    } catch (e: any) {
+      setMedError(e.message);
+    } finally {
+      setMedLoading(false);
+    }
+  };
+
+  const syncMedication = async () => {
+    if (!session?.user?.id) return;
+    setMedSyncing(true);
+    setMedError(null);
+    try {
+      const res = await fetch(`/api/medication/sync/${session.user.id}`, { method: "POST" });
+      const text = await res.text();
+      let data: any = null;
+      try {
+        data = text ? JSON.parse(text) : null;
+      } catch {
+        throw new Error(
+          `Medication sync failed (HTTP ${res.status}): server returned a non-JSON page. Restart the backend so /api/medication routes load.`
+        );
+      }
+      if (!res.ok) throw new Error(data?.error || data?.message || `Medication sync failed (HTTP ${res.status})`);
+      showToast("Medication patterns synced!");
+      await checkMedication();
+    } catch (e: any) {
+      setMedError(e.message);
+    } finally {
+      setMedSyncing(false);
+    }
+  };
+
+  useEffect(() => {
+    if (view === "medication" && status === "authenticated" && !medResult && !medLoading) {
+      checkMedication();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, status]);
 
   const todayStr = formatDateLocal(new Date());
 
@@ -318,6 +393,17 @@ export default function TasksDietPage() {
           >
             <MaterialIcon name="restaurant" className="text-sm" />
             Diet Plan ({dietPlans.length})
+          </button>
+          <button
+            onClick={() => setView("medication")}
+            className={`flex-1 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wide transition-all cursor-pointer flex items-center justify-center gap-2 ${
+              view === "medication"
+                ? "bg-[#1C1B18] dark:bg-zinc-800 text-white shadow-sm"
+                : "text-[#787363] dark:text-zinc-400 hover:text-[#1C1B18] dark:hover:text-white"
+            }`}
+          >
+            <MaterialIcon name="medication" className="text-sm" />
+            Medication
           </button>
         </div>
 
@@ -686,6 +772,98 @@ export default function TasksDietPage() {
                 )}
               </div>
             ))}
+          </div>
+        )}
+
+        {/* ─── MEDICATION VIEW ─── */}
+        {view === "medication" && (
+          <div className="space-y-5">
+            <div className="bg-white dark:bg-zinc-900 border border-[#E6E1D3] dark:border-zinc-800 rounded-3xl p-6 sm:p-8 shadow-sm space-y-5">
+              <div className="flex items-start justify-between gap-3 flex-wrap">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-xl bg-sky-100 dark:bg-sky-950/60 border border-sky-200 dark:border-sky-800 flex items-center justify-center">
+                      <MaterialIcon name="medication" className="text-base text-sky-600 dark:text-sky-400" />
+                    </div>
+                    <h2 className="font-serif text-lg font-bold text-[#1C1B18] dark:text-zinc-100">Medication Adherence</h2>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={syncMedication}
+                    disabled={medSyncing || medLoading}
+                    className="flex items-center gap-1.5 px-3.5 py-2 bg-white dark:bg-zinc-800 border border-[#E6E1D3] dark:border-zinc-700 text-[#1C1B18] dark:text-zinc-100 text-[10px] font-bold uppercase rounded-xl transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    <MaterialIcon name="sync" className={`text-sm ${medSyncing ? "animate-spin" : ""}`} />
+                    {medSyncing ? "Syncing..." : "Sync"}
+                  </button>
+                  <button
+                    onClick={checkMedication}
+                    disabled={medLoading || medSyncing}
+                    className="flex items-center gap-1.5 px-3.5 py-2 bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white text-[10px] font-bold uppercase rounded-xl transition-all cursor-pointer"
+                  >
+                    <MaterialIcon name="fact_check" className="text-sm" />
+                    {medLoading ? "Checking..." : "Check"}
+                  </button>
+                </div>
+              </div>
+
+              {medError && (
+                <div className="px-4 py-3 rounded-2xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-xs text-red-700 dark:text-red-300">
+                  {medError} — make sure the AI service (port 8000) and backend sync have run.
+                </div>
+              )}
+
+              {!medResult && !medError && !medLoading && (
+                <div className="text-center py-8 space-y-2">
+                  <MaterialIcon name="medication" className="text-4xl text-[#E6E1D3] dark:text-zinc-700 block" />
+                  <p className="text-xs text-[#787363] dark:text-zinc-400">Tap “Check” to compare today&apos;s pattern with your general pattern.</p>
+                </div>
+              )}
+
+              {medLoading && !medResult && (
+                <p className="text-xs text-[#787363] dark:text-zinc-400 text-center py-8">Checking adherence via logistic model...</p>
+              )}
+
+              {medResult && (
+                <div className="space-y-4">
+                  <div className={`rounded-2xl border p-5 text-center space-y-2 ${
+                    medResult.medication_taken
+                      ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800"
+                      : "bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-800"
+                  }`}>
+                    <MaterialIcon
+                      name={medResult.medication_taken ? "check_circle" : "cancel"}
+                      className={`text-4xl block ${medResult.medication_taken ? "text-emerald-500" : "text-red-500"}`}
+                    />
+                    <p className={`font-serif text-xl font-bold ${medResult.medication_taken ? "text-emerald-700 dark:text-emerald-300" : "text-red-700 dark:text-red-300"}`}>
+                      {medResult.verdict}
+                    </p>
+                    <p className="text-xs text-[#787363] dark:text-zinc-400">{medResult.status}</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#787363] dark:text-zinc-400">Similarity Score</span>
+                      <span className="text-sm font-bold text-[#1C1B18] dark:text-zinc-100">{medResult.similarity_pct} / 100</span>
+                    </div>
+                    <div className="h-2.5 bg-[#F0EDE4] dark:bg-zinc-800 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all ${medResult.medication_taken ? "bg-emerald-500" : "bg-red-500"}`}
+                        style={{ width: `${Math.min(100, Math.max(0, medResult.similarity_pct))}%` }}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between text-[10px] text-[#787363] dark:text-zinc-400">
+                      <span>Raw: {medResult.similarity_score}</span>
+                      <span>Label: {medResult.prediction_label} • {medResult.patternDate}</span>
+                    </div>
+                    <p className="text-[10px] text-[#787363] dark:text-zinc-400">
+                      Threshold 50 — above means today&apos;s pattern matches your general (taken) pattern.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </main>

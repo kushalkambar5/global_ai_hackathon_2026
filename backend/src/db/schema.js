@@ -5,6 +5,7 @@ import {
   text,
   date,
   numeric,
+  real,
   boolean,
   timestamp,
   jsonb,
@@ -246,6 +247,30 @@ export const conversations = pgTable('conversations', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
+
+// ==========================================
+// MEDICATION ADHERENCE PATTERNS (64-dim encoder embeddings)
+// general_patterns: one hardcoded baseline per patient (from training set label==1)
+// today_patterns: one encoder embedding per patient per day (from watch sync / stub)
+// ==========================================
+
+export const generalPatterns = pgTable('general_patterns', {
+  id: uuid('pattern_id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }).unique(),
+  pattern: real('pattern').array().notNull(), // list of 64 floats
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+export const todayPatterns = pgTable('today_patterns', {
+  id: uuid('pattern_id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  pattern: real('pattern').array().notNull(), // list of 64 floats
+  patternDate: date('pattern_date').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => ({
+  unqUserPatternDate: unique('unq_user_pattern_date').on(t.userId, t.patternDate),
+}));
 
 // ==========================================
 // AI CHATS

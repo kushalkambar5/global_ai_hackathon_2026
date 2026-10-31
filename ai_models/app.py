@@ -66,10 +66,70 @@ ecg_model = None
 heart_model = None
 chest_model = None
 skin_model = None
+# Medication-adherence models (ported from abcd/ reference)
+adherence_encoder = None
+adherence_classifier = None
+
+# --- Adherence model constants (must match abcd/train.py) ---
+ADHERENCE_INPUT_DIM = 3 * 288  # 864
+ADHERENCE_HIDDEN_DIMS = [512, 256, 128]
+ADHERENCE_EMBEDDING_DIM = 64
+ADHERENCE_DROPOUT_RATE = 0.3
+
+
+class AdherenceEncoder(nn.Module):
+    """Ported from abcd/train.py Encoder (864 -> 64)."""
+    def __init__(self, input_dim=ADHERENCE_INPUT_DIM, hidden_dims=None, embedding_dim=ADHERENCE_EMBEDDING_DIM, dropout_rate=ADHERENCE_DROPOUT_RATE):
+        super().__init__()
+        if hidden_dims is None:
+            hidden_dims = ADHERENCE_HIDDEN_DIMS
+        dims = [input_dim] + list(hidden_dims) + [embedding_dim]
+        layers = []
+        for i in range(len(dims) - 1):
+            layers.append(nn.Linear(dims[i], dims[i + 1]))
+            if i < len(dims) - 2:
+                layers.append(nn.ReLU())
+                layers.append(nn.Dropout(dropout_rate))
+        self.net = nn.Sequential(*layers)
+
+    def forward(self, x):
+        return self.net(x)
+
+
+class AdherenceClassifier(nn.Module):
+    """Ported from abcd/train.py LogisticRegressionHead (64 -> 1)."""
+    def __init__(self, embedding_dim=ADHERENCE_EMBEDDING_DIM):
+        super().__init__()
+        self.classifier = nn.Linear(embedding_dim, 1)
+
+    def forward(self, d):
+        return self.classifier(d).squeeze(-1)
+
+
+def _adherence_impute_nan(x: np.ndarray) -> np.ndarray:
+    x = x.copy()
+    for c in range(x.shape[0]):
+        row = x[c]
+        nan_mask = np.isnan(row)
+        if nan_mask.any():
+            valid_idx = np.where(~nan_mask)[0]
+            if len(valid_idx) == 0:
+                row[:] = 0.0
+            else:
+                row[nan_mask] = np.interp(np.where(nan_mask)[0], valid_idx, row[valid_idx])
+        x[c] = row
+    return x
+
+
+def _adherence_preprocess(x: np.ndarray) -> np.ndarray:
+    x = _adherence_impute_nan(x)
+    means = x.mean(axis=1, keepdims=True)
+    x = x - means
+    return x.astype(np.float32).flatten()
 
 @app.on_event("startup")
 def load_models():
-    global bone_model, brain_model, ecg_model, heart_model, chest_model, skin_model
+    global bone_model, brain_model, ecg_model, heart_model, chest_model, skin_model, adherence_encoder, adherence_classifier
     
     # 1. Bone Fracture Model
     bone_path = os.path.join(MODELS_DIR, "best_fracture_classifier.pt")
@@ -103,6 +163,28 @@ def load_models():
     skin_path = os.path.join(MODELS_DIR, "best.pt")
     if os.path.exists(skin_path):
         skin_model = YOLO(skin_path)
+
+    # 7. Medication-adherence Encoder (864 -> 64), ported from abcd/models/encoder.pt
+    adherence_encoder_path = os.path.join(MODELS_DIR, "encoder.pt")
+    if os.path.exists(adherence_encoder_path):
+        try:
+            adherence_encoder = AdherenceEncoder()
+            adherence_encoder.load_state_dict(torch.load(adherence_encoder_path, map_location=torch.device('cpu')))
+            adherence_encoder.eval()
+        except Exception as e:
+            print(f"[adherence] failed to load encoder: {e}")
+            adherence_encoder = None
+
+    # 8. Medication-adherence Logistic head (64 -> 1), ported from abcd/models/classifier.pt
+    adherence_classifier_path = os.path.join(MODELS_DIR, "classifier.pt")
+    if os.path.exists(adherence_classifier_path):
+        try:
+            adherence_classifier = AdherenceClassifier()
+            adherence_classifier.load_state_dict(torch.load(adherence_classifier_path, map_location=torch.device('cpu')))
+            adherence_classifier.eval()
+        except Exception as e:
+            print(f"[adherence] failed to load classifier: {e}")
+            adherence_classifier = None
 
 @app.get("/")
 def home():
@@ -283,6 +365,81 @@ async def predict_skin(file: UploadFile = File(...)):
     return {
         "diagnosis": top_class_name,
         "confidence": round(top_confidence, 2)
+    }
+
+# ==========================================
+# MEDICATION ADHERENCE (ported from abcd/main.py)
+# Encoder: 288*3 vitals -> 64-dim pattern (today/general)
+# Classifier: |zA - zB| -> similarity score (logistic model)
+# ==========================================
+
+from typing import Union
+
+
+class RawVitalsRequest(BaseModel):
+    vitals_data: Union[List[List[float]], List[float]]
+
+
+class CompareFeaturesRequest(BaseModel):
+    feature_a: List[float]
+    feature_b: List[float]
+
+
+@app.post("/extract-features")
+def extract_features(request: RawVitalsRequest):
+    if adherence_encoder is None:
+        raise HTTPException(status_code=500, detail="Adherence encoder model not loaded")
+
+    raw_data = np.array(request.vitals_data, dtype=np.float32)
+
+    if raw_data.ndim == 1:
+        if raw_data.size != ADHERENCE_INPUT_DIM:
+            raise HTTPException(status_code=400, detail=f"Flat list length must be {ADHERENCE_INPUT_DIM} (3x288). Got {raw_data.size}.")
+        raw_data = raw_data.reshape(3, 288)
+    elif raw_data.ndim == 2:
+        if raw_data.shape != (3, 288):
+            raise HTTPException(status_code=400, detail=f"2D vitals matrix must have shape (3, 288). Got {raw_data.shape}.")
+    else:
+        raise HTTPException(status_code=400, detail=f"Expected 1D (864) or 2D (3x288). Got ndim={raw_data.ndim}.")
+
+    processed_vec = _adherence_preprocess(raw_data)
+    tensor_input = torch.from_numpy(processed_vec).unsqueeze(0)
+
+    with torch.no_grad():
+        embedding_tensor = adherence_encoder(tensor_input)
+        embedding_list = embedding_tensor.squeeze(0).cpu().numpy().tolist()
+
+    return {
+        "embedding": [round(float(x), 6) for x in embedding_list],
+        "embedding_dim": len(embedding_list),
+    }
+
+
+@app.post("/predict-closeness")
+def predict_closeness(request: CompareFeaturesRequest, threshold: float = 0.5):
+    if adherence_classifier is None:
+        raise HTTPException(status_code=500, detail="Adherence classifier model not loaded")
+
+    if len(request.feature_a) != ADHERENCE_EMBEDDING_DIM or len(request.feature_b) != ADHERENCE_EMBEDDING_DIM:
+        raise HTTPException(status_code=400, detail=f"Both feature vectors must have dimension {ADHERENCE_EMBEDDING_DIM}.")
+
+    feat_a = np.array(request.feature_a, dtype=np.float32)
+    feat_b = np.array(request.feature_b, dtype=np.float32)
+    diff = np.abs(feat_a - feat_b)
+    diff_tensor = torch.from_numpy(diff).unsqueeze(0)
+
+    with torch.no_grad():
+        logit = adherence_classifier(diff_tensor)
+        score = torch.sigmoid(logit).item()
+
+    is_close = score >= threshold
+    return {
+        "similarity_score": round(float(score), 4),
+        "similarity_pct": round(float(score) * 100, 2),
+        "is_close": bool(is_close),
+        "prediction_label": 1 if is_close else 0,
+        "status": "High similarity (Close / Adherent pattern)" if is_close else "Low similarity (Distant / Anomaly pattern)",
+        "medication_taken": bool(is_close),
     }
 
 if __name__ == "__main__":
