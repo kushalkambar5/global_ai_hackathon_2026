@@ -1,6 +1,7 @@
 import express from 'express';
 import dotenv from 'dotenv';
 import cors from 'cors';
+import http from 'http';
 import authRoutes from './src/routes/auth.js';
 import healthRoutes from './src/routes/health.js';
 import uploadRoutes from './src/routes/upload.js';
@@ -9,11 +10,18 @@ import tasksRoutes from './src/routes/tasks.js';
 import dietRoutes from './src/routes/diet.js';
 import chatRoutes from './src/routes/chat.js';
 import { initDb } from './src/db/init.js';
+import { initChatWebSocket } from './src/chatSocket.js';
 
 dotenv.config({ override: true });
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+
+// Create HTTP server for Express and WebSockets
+const server = http.createServer(app);
+
+// Initialize Chat WebSocket
+initChatWebSocket(server);
 
 // Middleware
 app.use(cors());
@@ -38,7 +46,7 @@ app.use('/api', apiRoutes);
 initDb().catch((err) => {
   console.error('[Server Error] Database initialization failed:', err);
 }).finally(() => {
-  app.listen(PORT, () => {
+  server.listen(PORT, () => {
     console.log(`Server listening on port ${PORT}`);
   });
 });

@@ -15,6 +15,7 @@ import {
 } from '../db/schema.js';
 import { eq, desc, and } from 'drizzle-orm';
 import { uploadToR2 } from '../utils/r2.js';
+import { broadcastChatMessage } from '../chatSocket.js';
 
 const router = Router();
 
@@ -1583,6 +1584,8 @@ router.get('/chat/doctor-patient', authenticateProxyUser, async (req, res) => {
         chatId: chat.id,
         messages: chat.messages || [],
         otherUser,
+        doctorId,
+        patientId: userId,
       });
 
     } else if (role === 'DOCTOR') {
@@ -1663,6 +1666,8 @@ router.get('/chat/doctor-patient', authenticateProxyUser, async (req, res) => {
         chatId: chat.id,
         messages: chat.messages || [],
         otherUser,
+        doctorId,
+        patientId,
       });
 
     } else {
@@ -1803,6 +1808,9 @@ router.post('/chat/doctor-patient', authenticateProxyUser, async (req, res) => {
         updatedAt: new Date(),
       })
       .where(eq(doctorPatientChats.id, chat.id));
+
+    // Real-time WebSocket broadcast
+    broadcastChatMessage(doctorId, resolvedPatientId, newMessage);
 
     return res.json({
       success: true,

@@ -57,6 +57,7 @@ function ChatContent() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [activeRoom, setActiveRoom] = useState<{ doctorId: string; patientId: string } | null>(null);
 
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const isFirstLoad = useRef(true);
@@ -124,6 +125,7 @@ function ChatContent() {
       setChatLoading(false);
       setMessages([]);
       setOtherUser(null);
+      setActiveRoom(null);
       return;
     }
 
@@ -144,7 +146,6 @@ function ChatContent() {
 
         const resp = await fetch(url);
         if (!resp.ok) {
-          // If it's a transient network/proxy error (e.g., 502, 500) and we have retries left
           if (resp.status !== 401 && resp.status !== 403 && retryCount < 2) {
             shouldSetLoadingFalse = false;
             setTimeout(() => fetchChat(isInitial, retryCount + 1), 1000);
@@ -167,10 +168,14 @@ function ChatContent() {
         if (data.success === false && data.code === "NO_DOCTOR_ASSIGNED") {
           setNoDoctorAssigned(true);
           setError(null);
+          setActiveRoom(null);
         } else if (data.success) {
           setNoDoctorAssigned(false);
           if (data.otherUser && !isDoctor && !doctorIdParam) {
             router.replace(`/chat?doctorId=${data.otherUser.id}`);
+          }
+          if (data.doctorId && data.patientId) {
+            setActiveRoom({ doctorId: data.doctorId, patientId: data.patientId });
           }
           setMessages((prev) => {
             const next = data.messages || [];
@@ -214,9 +219,87 @@ function ChatContent() {
     };
 
     fetchChat(true);
-    const interval = setInterval(() => fetchChat(false), 3000);
-    return () => clearInterval(interval);
   }, [status, session, patientIdParam, doctorIdParam, router]);
+
+  // Real-time WebSocket connection for live doctor-patient chat (No GET polling!)
+  useEffect(() => {
+    if (!activeRoom?.doctorId || !activeRoom?.patientId) return;
+
+    let ws: WebSocket | null = null;
+    let reconnectTimer: NodeJS.Timeout | null = null;
+    let isCancelled = false;
+
+    const connectWS = () => {
+      if (isCancelled) return;
+
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const host = process.env.NEXT_PUBLIC_WS_URL || `${protocol}//${window.location.hostname}:5000/ws/chat`;
+
+      try {
+        ws = new WebSocket(host);
+
+        ws.onopen = () => {
+          if (ws?.readyState === WebSocket.OPEN) {
+            ws.send(
+              JSON.stringify({
+                type: "join",
+                doctorId: activeRoom.doctorId,
+                patientId: activeRoom.patientId,
+              })
+            );
+          }
+        };
+
+        ws.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            if (data.type === "new_message" && data.message) {
+              setMessages((prev) => {
+                const exists = prev.some(
+                  (m) =>
+                    m.timestamp === data.message.timestamp &&
+                    m.senderId === data.message.senderId &&
+                    m.text === data.message.text
+                );
+                if (exists) return prev;
+                return [...prev, data.message];
+              });
+            }
+          } catch (err) {
+            console.error("WS message parse error:", err);
+          }
+        };
+
+        ws.onclose = () => {
+          if (!isCancelled) {
+            reconnectTimer = setTimeout(connectWS, 3000);
+          }
+        };
+
+        ws.onerror = () => {
+          if (ws && ws.readyState !== WebSocket.CLOSED) {
+            ws.close();
+          }
+        };
+      } catch (err) {
+        console.error("WS connection error:", err);
+        if (!isCancelled) {
+          reconnectTimer = setTimeout(connectWS, 3000);
+        }
+      }
+    };
+
+    connectWS();
+
+    return () => {
+      isCancelled = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (ws) {
+        ws.onclose = null;
+        ws.close();
+      }
+    };
+  }, [activeRoom]);
 
   useEffect(() => {
     isFirstLoad.current = true;
