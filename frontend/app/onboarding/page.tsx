@@ -55,6 +55,13 @@ export default function OnboardingPage() {
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<{ [key: string]: string }>({});
+
+  // Helpers for date limits (range of 0 to 150 years old)
+  const todayObj = new Date();
+  const maxDateStr = todayObj.toISOString().split("T")[0];
+  const minDateObj = new Date(todayObj.getFullYear() - 150, todayObj.getMonth(), todayObj.getDate());
+  const minDateStr = minDateObj.toISOString().split("T")[0];
 
   // Pre-fill fullName from session
   useEffect(() => {
@@ -77,10 +84,105 @@ export default function OnboardingPage() {
     }
   }, [session]);
 
+  // Calculate Age details helper
+  const calculateAgeDetails = (dobStr: string) => {
+    if (!dobStr) return null;
+    const parts = dobStr.split("-");
+    if (parts.length !== 3) {
+      return { age: null, valid: false, error: "Invalid date format." };
+    }
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1;
+    const day = parseInt(parts[2], 10);
+
+    if (isNaN(year) || isNaN(month) || isNaN(day)) {
+      return { age: null, valid: false, error: "Invalid date format." };
+    }
+
+    const birthDate = new Date(year, month, day);
+    // JavaScript's new Date(year, month, day) maps 2-digit/1-digit years (0-99) to 1900-1999.
+    // Call setFullYear to accurately reflect years 0000-0099 (e.g. 0001 AD).
+    if (year >= 0 && year <= 99) {
+      birthDate.setFullYear(year);
+    }
+
+    if (isNaN(birthDate.getTime())) {
+      return { age: null, valid: false, error: "Invalid date format." };
+    }
+
+    const today = new Date();
+    const todayZero = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const birthZero = new Date(birthDate.getFullYear(), birthDate.getMonth(), birthDate.getDate());
+
+    if (birthZero > todayZero) {
+      return { age: null, valid: false, error: "Date of birth cannot be in the future (age must be between 0 and 150)." };
+    }
+
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const m = today.getMonth() - birthDate.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+
+    if (age < 0) {
+      return { age: null, valid: false, error: "Date of birth cannot be in the future (age must be between 0 and 150)." };
+    }
+    if (age > 150) {
+      return { age, valid: false, error: "Age must be realistic (between 0 and 150 years)." };
+    }
+
+    return { age, valid: true, error: null };
+  };
+
+  // Calculate live BMI
+  const calculateBmiPreview = (heightStr: string, weightStr: string) => {
+    const h = parseFloat(heightStr);
+    const w = parseFloat(weightStr);
+    if (isNaN(h) || isNaN(w) || h <= 0 || w <= 0 || h < 30 || h > 300 || w < 1 || w > 500) {
+      return null;
+    }
+    const bmi = w / Math.pow(h / 100, 2);
+    let category = "Normal weight";
+    let badgeClass = "text-[#137333] bg-[#E6F4EA] border-[#C2E7CD]";
+
+    if (bmi < 18.5) {
+      category = "Underweight";
+      badgeClass = "text-[#B06000] bg-[#FEF7E0] border-[#FCE8B2]";
+    } else if (bmi >= 25 && bmi < 30) {
+      category = "Overweight";
+      badgeClass = "text-[#B06000] bg-[#FEF7E0] border-[#FCE8B2]";
+    } else if (bmi >= 30) {
+      category = "Obesity";
+      badgeClass = "text-[#C5221F] bg-[#FCE8E6] border-[#FAD2CF]";
+    }
+
+    return { bmi: bmi.toFixed(1), category, badgeClass };
+  };
+
+  const clearFieldError = (fieldName: string) => {
+    if (fieldErrors[fieldName]) {
+      setFieldErrors((prev) => {
+        const copy = { ...prev };
+        delete copy[fieldName];
+        return copy;
+      });
+    }
+    if (error) setError("");
+  };
+
   // Handle custom image selection
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      if (!file.type.startsWith("image/")) {
+        setError("Please select a valid image file (PNG, JPG, SVG, WebP).");
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        setError("Image file size must be less than 5MB.");
+        return;
+      }
+      setError("");
       setCustomImage(file);
       const reader = new FileReader();
       reader.onloadend = () => {
@@ -90,22 +192,104 @@ export default function OnboardingPage() {
     }
   };
 
+  const validateStep = (stepNumber: number): boolean => {
+    const errors: { [key: string]: string } = {};
+
+    if (stepNumber === 1) {
+      const trimmedName = fullName.trim();
+      if (!trimmedName) {
+        errors.fullName = "Full name is required.";
+      } else if (trimmedName.length < 2) {
+        errors.fullName = "Full name must be at least 2 characters.";
+      } else if (!/^[a-zA-Z\s.'-]+$/.test(trimmedName)) {
+        errors.fullName = "Full name contains invalid characters.";
+      }
+
+      if (!dob) {
+        errors.dob = "Date of birth is required.";
+      } else {
+        const ageInfo = calculateAgeDetails(dob);
+        if (!ageInfo || !ageInfo.valid) {
+          errors.dob = ageInfo?.error || "Please enter a valid date of birth.";
+        }
+      }
+
+      if (!gender) {
+        errors.gender = "Please select a gender.";
+      } else if (!["MALE", "FEMALE", "OTHER"].includes(gender)) {
+        errors.gender = "Invalid gender selection.";
+      }
+
+      const validBloodGroups = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
+      if (bloodGroup && !validBloodGroups.includes(bloodGroup)) {
+        errors.bloodGroup = "Please select a valid blood group.";
+      }
+
+      if (heightCm) {
+        const h = parseFloat(heightCm);
+        if (isNaN(h) || h <= 0) {
+          errors.heightCm = "Height must be a positive number greater than 0.";
+        } else if (h < 30 || h > 300) {
+          errors.heightCm = "Height must be a realistic human height (30 cm to 300 cm).";
+        }
+      }
+
+      if (weightKg) {
+        const w = parseFloat(weightKg);
+        if (isNaN(w) || w <= 0) {
+          errors.weightKg = "Weight must be a positive number greater than 0.";
+        } else if (w < 1 || w > 500) {
+          errors.weightKg = "Weight must be a realistic human weight (1 kg to 500 kg).";
+        }
+      }
+    }
+
+    if (stepNumber === 2) {
+      if (emergencyContact.trim()) {
+        const phoneRegex = /^(\+?[0-9\s\-()]{7,20})$/;
+        if (!phoneRegex.test(emergencyContact.trim())) {
+          errors.emergencyContact = "Please enter a valid emergency contact phone number (at least 7 digits).";
+        }
+      }
+    }
+
+    if (stepNumber === 3) {
+      if (session?.user?.role === "DOCTOR") {
+        const trimmedLicense = licenseNumber.trim();
+        if (!trimmedLicense) {
+          errors.licenseNumber = "Medical license number is required.";
+        } else if (trimmedLicense.length < 3) {
+          errors.licenseNumber = "License number must be at least 3 characters.";
+        }
+
+        if (yearsExperience) {
+          const exp = parseInt(yearsExperience, 10);
+          if (isNaN(exp) || exp < 0) {
+            errors.yearsExperience = "Years of experience cannot be negative.";
+          } else if (exp > 70) {
+            errors.yearsExperience = "Years of experience cannot exceed 70.";
+          } else {
+            const ageInfo = calculateAgeDetails(dob);
+            if (ageInfo?.age !== null && ageInfo?.age !== undefined && ageInfo.age - 18 < exp) {
+              errors.yearsExperience = `Experience cannot exceed ${Math.max(0, ageInfo.age - 18)} years based on your age.`;
+            }
+          }
+        }
+      }
+    }
+
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      setError(Object.values(errors)[0]);
+      return false;
+    }
+    return true;
+  };
+
   const nextStep = () => {
     setError("");
-    // Basic validation per step
-    if (step === 1) {
-      if (!fullName) {
-        setError("Please enter your name.");
-        return;
-      }
-      if (!dob) {
-        setError("Please enter your date of birth.");
-        return;
-      }
-      if (!gender) {
-        setError("Please select a gender.");
-        return;
-      }
+    if (!validateStep(step)) {
+      return;
     }
     setStep((prev) => prev + 1);
   };
@@ -117,24 +301,23 @@ export default function OnboardingPage() {
 
   const handleSubmit = async () => {
     setError("");
-    setSubmitting(true);
 
-    // Final checks
-    if (session?.user?.role === "DOCTOR" && !licenseNumber) {
-      setError("Medical license number is required.");
-      setSubmitting(false);
+    // Validate all steps before submitting
+    if (!validateStep(1) || !validateStep(2) || !validateStep(3)) {
       return;
     }
 
+    setSubmitting(true);
+
     try {
       const formData = new FormData();
-      formData.append("fullName", fullName);
+      formData.append("fullName", fullName.trim());
       formData.append("dob", dob);
       formData.append("gender", gender);
-      formData.append("bloodGroup", bloodGroup);
-      formData.append("heightCm", heightCm);
-      formData.append("weightKg", weightKg);
-      formData.append("emergencyContact", emergencyContact);
+      if (bloodGroup) formData.append("bloodGroup", bloodGroup);
+      if (heightCm) formData.append("heightCm", parseFloat(heightCm).toString());
+      if (weightKg) formData.append("weightKg", parseFloat(weightKg).toString());
+      if (emergencyContact.trim()) formData.append("emergencyContact", emergencyContact.trim());
 
       if (customImage) {
         formData.append("profileImage", customImage);
@@ -147,11 +330,11 @@ export default function OnboardingPage() {
       }
 
       if (session?.user?.role === "DOCTOR") {
-        formData.append("licenseNumber", licenseNumber);
-        formData.append("specialization", specialization);
-        formData.append("yearsExperience", yearsExperience);
-        formData.append("bio", bio);
-        formData.append("hospitalAffiliation", hospitalAffiliation);
+        formData.append("licenseNumber", licenseNumber.trim());
+        formData.append("specialization", specialization.trim());
+        formData.append("yearsExperience", yearsExperience ? parseInt(yearsExperience, 10).toString() : "0");
+        formData.append("bio", bio.trim());
+        formData.append("hospitalAffiliation", hospitalAffiliation.trim());
       }
 
       const res = await fetch("/api/onboarding", {
@@ -168,7 +351,7 @@ export default function OnboardingPage() {
       // Update NextAuth Session to trigger onboardingComplete = true
       await update({
         onboardingComplete: true,
-        name: fullName,
+        name: fullName.trim(),
         picture: data.user.profileImageUrl || selectedAvatar,
       });
 
@@ -248,45 +431,116 @@ export default function OnboardingPage() {
               {/* Full Name */}
               <div className="sm:col-span-2">
                 <label className="block text-xs font-semibold text-[#4D493E] uppercase tracking-wider mb-2">
-                  Full Name
+                  Full Name *
                 </label>
                 <input
                   type="text"
                   value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  className="block w-full px-4 py-3 bg-white border border-[#DCD5C5] rounded-xl text-[#1C1B18] focus:outline-hidden focus:ring-2 focus:ring-[#8C6B1F]/30 focus:border-[#8C6B1F] transition-all text-sm"
+                  onChange={(e) => {
+                    setFullName(e.target.value);
+                    clearFieldError("fullName");
+                  }}
+                  className={`block w-full px-4 py-3 bg-white border ${
+                    fieldErrors.fullName ? "border-red-500 ring-1 ring-red-500" : "border-[#DCD5C5]"
+                  } rounded-xl text-[#1C1B18] focus:outline-hidden focus:ring-2 focus:ring-[#8C6B1F]/30 focus:border-[#8C6B1F] transition-all text-sm`}
                   placeholder="Enter full name"
                 />
+                {fieldErrors.fullName && (
+                  <p className="mt-1.5 text-xs text-red-600 font-sans flex items-center gap-1">
+                    <MaterialIcon name="error" className="text-sm" />
+                    <span>{fieldErrors.fullName}</span>
+                  </p>
+                )}
               </div>
 
               {/* Date of Birth */}
               <div>
                 <label className="block text-xs font-semibold text-[#4D493E] uppercase tracking-wider mb-2">
-                  Date of Birth
+                  Date of Birth *
                 </label>
                 <input
                   type="date"
+                  max={maxDateStr}
+                  min={minDateStr}
                   value={dob}
-                  onChange={(e) => setDob(e.target.value)}
-                  className="block w-full px-4 py-3 bg-white border border-[#DCD5C5] rounded-xl text-[#1C1B18] focus:outline-hidden focus:ring-2 focus:ring-[#8C6B1F]/30 focus:border-[#8C6B1F] transition-all text-sm"
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setDob(value);
+                    if (value) {
+                      const ageInfo = calculateAgeDetails(value);
+                      if (ageInfo && !ageInfo.valid) {
+                        setFieldErrors((prev) => ({
+                          ...prev,
+                          dob: ageInfo.error || "Age must be realistic (between 0 and 150 years).",
+                        }));
+                      } else {
+                        clearFieldError("dob");
+                      }
+                    } else {
+                      clearFieldError("dob");
+                    }
+                  }}
+                  className={`block w-full px-4 py-3 bg-white border ${
+                    fieldErrors.dob ? "border-red-500 ring-1 ring-red-500" : "border-[#DCD5C5]"
+                  } rounded-xl text-[#1C1B18] focus:outline-hidden focus:ring-2 focus:ring-[#8C6B1F]/30 focus:border-[#8C6B1F] transition-all text-sm`}
                 />
+                {(() => {
+                  const ageInfo = calculateAgeDetails(dob);
+                  if (fieldErrors.dob) {
+                    return (
+                      <p className="mt-1.5 text-xs text-red-600 font-sans flex items-center gap-1">
+                        <MaterialIcon name="error" className="text-sm" />
+                        <span>{fieldErrors.dob}</span>
+                      </p>
+                    );
+                  }
+                  if (ageInfo) {
+                    if (ageInfo.valid) {
+                      return (
+                        <p className="mt-1.5 text-xs font-medium text-[#137333] flex items-center gap-1">
+                          <MaterialIcon name="cake" className="text-sm text-[#137333]" />
+                          <span>Calculated Age: <strong>{ageInfo.age} {ageInfo.age === 1 ? "year" : "years"} old</strong></span>
+                        </p>
+                      );
+                    } else {
+                      return (
+                        <p className="mt-1.5 text-xs text-red-600 font-sans flex items-center gap-1">
+                          <MaterialIcon name="warning" className="text-sm" />
+                          <span>{ageInfo.error}</span>
+                        </p>
+                      );
+                    }
+                  }
+                  return null;
+                })()}
               </div>
 
               {/* Gender */}
               <div>
                 <label className="block text-xs font-semibold text-[#4D493E] uppercase tracking-wider mb-2">
-                  Gender
+                  Gender *
                 </label>
                 <select
                   value={gender}
-                  onChange={(e) => setGender(e.target.value)}
-                  className="block w-full px-4 py-3 bg-white border border-[#DCD5C5] rounded-xl text-[#1C1B18] focus:outline-hidden focus:ring-2 focus:ring-[#8C6B1F]/30 focus:border-[#8C6B1F] transition-all text-sm"
+                  onChange={(e) => {
+                    setGender(e.target.value);
+                    clearFieldError("gender");
+                  }}
+                  className={`block w-full px-4 py-3 bg-white border ${
+                    fieldErrors.gender ? "border-red-500 ring-1 ring-red-500" : "border-[#DCD5C5]"
+                  } rounded-xl text-[#1C1B18] focus:outline-hidden focus:ring-2 focus:ring-[#8C6B1F]/30 focus:border-[#8C6B1F] transition-all text-sm`}
                 >
                   <option value="">Select Gender</option>
                   <option value="MALE">Male</option>
                   <option value="FEMALE">Female</option>
                   <option value="OTHER">Other</option>
                 </select>
+                {fieldErrors.gender && (
+                  <p className="mt-1.5 text-xs text-red-600 font-sans flex items-center gap-1">
+                    <MaterialIcon name="error" className="text-sm" />
+                    <span>{fieldErrors.gender}</span>
+                  </p>
+                )}
               </div>
 
               {/* Blood Group */}
@@ -296,8 +550,13 @@ export default function OnboardingPage() {
                 </label>
                 <select
                   value={bloodGroup}
-                  onChange={(e) => setBloodGroup(e.target.value)}
-                  className="block w-full px-4 py-3 bg-white border border-[#DCD5C5] rounded-xl text-[#1C1B18] focus:outline-hidden focus:ring-2 focus:ring-[#8C6B1F]/30 focus:border-[#8C6B1F] transition-all text-sm"
+                  onChange={(e) => {
+                    setBloodGroup(e.target.value);
+                    clearFieldError("bloodGroup");
+                  }}
+                  className={`block w-full px-4 py-3 bg-white border ${
+                    fieldErrors.bloodGroup ? "border-red-500 ring-1 ring-red-500" : "border-[#DCD5C5]"
+                  } rounded-xl text-[#1C1B18] focus:outline-hidden focus:ring-2 focus:ring-[#8C6B1F]/30 focus:border-[#8C6B1F] transition-all text-sm`}
                 >
                   <option value="">Select Blood Group</option>
                   <option value="A+">A+</option>
@@ -309,6 +568,12 @@ export default function OnboardingPage() {
                   <option value="O+">O+</option>
                   <option value="O-">O-</option>
                 </select>
+                {fieldErrors.bloodGroup && (
+                  <p className="mt-1.5 text-xs text-red-600 font-sans flex items-center gap-1">
+                    <MaterialIcon name="error" className="text-sm" />
+                    <span>{fieldErrors.bloodGroup}</span>
+                  </p>
+                )}
               </div>
 
               {/* Height */}
@@ -319,11 +584,24 @@ export default function OnboardingPage() {
                 <input
                   type="number"
                   step="0.1"
+                  min="30"
+                  max="300"
                   value={heightCm}
-                  onChange={(e) => setHeightCm(e.target.value)}
-                  className="block w-full px-4 py-3 bg-white border border-[#DCD5C5] rounded-xl text-[#1C1B18] focus:outline-hidden focus:ring-2 focus:ring-[#8C6B1F]/30 focus:border-[#8C6B1F] transition-all text-sm"
+                  onChange={(e) => {
+                    setHeightCm(e.target.value);
+                    clearFieldError("heightCm");
+                  }}
+                  className={`block w-full px-4 py-3 bg-white border ${
+                    fieldErrors.heightCm ? "border-red-500 ring-1 ring-red-500" : "border-[#DCD5C5]"
+                  } rounded-xl text-[#1C1B18] focus:outline-hidden focus:ring-2 focus:ring-[#8C6B1F]/30 focus:border-[#8C6B1F] transition-all text-sm`}
                   placeholder="e.g. 175"
                 />
+                {fieldErrors.heightCm && (
+                  <p className="mt-1.5 text-xs text-red-600 font-sans flex items-center gap-1">
+                    <MaterialIcon name="error" className="text-sm" />
+                    <span>{fieldErrors.heightCm}</span>
+                  </p>
+                )}
               </div>
 
               {/* Weight */}
@@ -334,12 +612,42 @@ export default function OnboardingPage() {
                 <input
                   type="number"
                   step="0.1"
+                  min="1"
+                  max="500"
                   value={weightKg}
-                  onChange={(e) => setWeightKg(e.target.value)}
-                  className="block w-full px-4 py-3 bg-white border border-[#DCD5C5] rounded-xl text-[#1C1B18] focus:outline-hidden focus:ring-2 focus:ring-[#8C6B1F]/30 focus:border-[#8C6B1F] transition-all text-sm"
+                  onChange={(e) => {
+                    setWeightKg(e.target.value);
+                    clearFieldError("weightKg");
+                  }}
+                  className={`block w-full px-4 py-3 bg-white border ${
+                    fieldErrors.weightKg ? "border-red-500 ring-1 ring-red-500" : "border-[#DCD5C5]"
+                  } rounded-xl text-[#1C1B18] focus:outline-hidden focus:ring-2 focus:ring-[#8C6B1F]/30 focus:border-[#8C6B1F] transition-all text-sm`}
                   placeholder="e.g. 70"
                 />
+                {fieldErrors.weightKg && (
+                  <p className="mt-1.5 text-xs text-red-600 font-sans flex items-center gap-1">
+                    <MaterialIcon name="error" className="text-sm" />
+                    <span>{fieldErrors.weightKg}</span>
+                  </p>
+                )}
               </div>
+
+              {/* Live BMI Indicator */}
+              {(() => {
+                const bmiPreview = calculateBmiPreview(heightCm, weightKg);
+                if (!bmiPreview) return null;
+                return (
+                  <div className={`sm:col-span-2 p-3.5 rounded-xl border flex items-center justify-between text-xs font-medium font-sans ${bmiPreview.badgeClass}`}>
+                    <div className="flex items-center gap-2">
+                      <MaterialIcon name="monitor_weight" className="text-lg shrink-0" />
+                      <span>Estimated Body Mass Index (BMI): <strong>{bmiPreview.bmi} kg/m²</strong></span>
+                    </div>
+                    <span className="font-semibold uppercase tracking-wider text-[10px] px-2 py-0.5 rounded-md border border-current bg-white/50">
+                      {bmiPreview.category}
+                    </span>
+                  </div>
+                );
+              })()}
             </div>
 
             <div className="flex justify-end pt-4">
@@ -370,10 +678,21 @@ export default function OnboardingPage() {
               <input
                 type="tel"
                 value={emergencyContact}
-                onChange={(e) => setEmergencyContact(e.target.value)}
-                className="block w-full px-4 py-3 bg-white border border-[#DCD5C5] rounded-xl text-[#1C1B18] focus:outline-hidden focus:ring-2 focus:ring-[#8C6B1F]/30 focus:border-[#8C6B1F] transition-all text-sm"
+                onChange={(e) => {
+                  setEmergencyContact(e.target.value);
+                  clearFieldError("emergencyContact");
+                }}
+                className={`block w-full px-4 py-3 bg-white border ${
+                  fieldErrors.emergencyContact ? "border-red-500 ring-1 ring-red-500" : "border-[#DCD5C5]"
+                } rounded-xl text-[#1C1B18] focus:outline-hidden focus:ring-2 focus:ring-[#8C6B1F]/30 focus:border-[#8C6B1F] transition-all text-sm`}
                 placeholder="e.g. +1 555-0199"
               />
+              {fieldErrors.emergencyContact && (
+                <p className="mt-1.5 text-xs text-red-600 font-sans flex items-center gap-1">
+                  <MaterialIcon name="error" className="text-sm" />
+                  <span>{fieldErrors.emergencyContact}</span>
+                </p>
+              )}
             </div>
 
             {/* Profile Avatar Selection */}
@@ -574,10 +893,21 @@ export default function OnboardingPage() {
                       type="text"
                       required
                       value={licenseNumber}
-                      onChange={(e) => setLicenseNumber(e.target.value)}
-                      className="block w-full px-4 py-3 bg-white border border-[#DCD5C5] rounded-xl text-[#1C1B18] focus:outline-hidden focus:ring-2 focus:ring-[#8C6B1F]/30 focus:border-[#8C6B1F] transition-all text-sm"
+                      onChange={(e) => {
+                        setLicenseNumber(e.target.value);
+                        clearFieldError("licenseNumber");
+                      }}
+                      className={`block w-full px-4 py-3 bg-white border ${
+                        fieldErrors.licenseNumber ? "border-red-500 ring-1 ring-red-500" : "border-[#DCD5C5]"
+                      } rounded-xl text-[#1C1B18] focus:outline-hidden focus:ring-2 focus:ring-[#8C6B1F]/30 focus:border-[#8C6B1F] transition-all text-sm`}
                       placeholder="e.g. LIC-998877"
                     />
+                    {fieldErrors.licenseNumber && (
+                      <p className="mt-1.5 text-xs text-red-600 font-sans flex items-center gap-1">
+                        <MaterialIcon name="error" className="text-sm" />
+                        <span>{fieldErrors.licenseNumber}</span>
+                      </p>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -602,11 +932,25 @@ export default function OnboardingPage() {
                       </label>
                       <input
                         type="number"
+                        min="0"
+                        max="70"
+                        step="1"
                         value={yearsExperience}
-                        onChange={(e) => setYearsExperience(e.target.value)}
-                        className="block w-full px-4 py-3 bg-white border border-[#DCD5C5] rounded-xl text-[#1C1B18] focus:outline-hidden focus:ring-2 focus:ring-[#8C6B1F]/30 focus:border-[#8C6B1F] transition-all text-sm"
+                        onChange={(e) => {
+                          setYearsExperience(e.target.value);
+                          clearFieldError("yearsExperience");
+                        }}
+                        className={`block w-full px-4 py-3 bg-white border ${
+                          fieldErrors.yearsExperience ? "border-red-500 ring-1 ring-red-500" : "border-[#DCD5C5]"
+                        } rounded-xl text-[#1C1B18] focus:outline-hidden focus:ring-2 focus:ring-[#8C6B1F]/30 focus:border-[#8C6B1F] transition-all text-sm`}
                         placeholder="e.g. 8"
                       />
+                      {fieldErrors.yearsExperience && (
+                        <p className="mt-1.5 text-xs text-red-600 font-sans flex items-center gap-1">
+                          <MaterialIcon name="error" className="text-sm" />
+                          <span>{fieldErrors.yearsExperience}</span>
+                        </p>
+                      )}
                     </div>
                   </div>
 

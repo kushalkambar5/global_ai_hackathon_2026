@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { MaterialIcon } from "@/components/ui/MaterialIcon";
@@ -9,6 +9,19 @@ import { useSession, signOut } from "next-auth/react";
 import { ProfileModal } from "@/components/ProfileModal";
 import { usePathname } from "next/navigation";
 
+interface NavItem {
+  href: string;
+  label: string;
+  icon: string;
+  role?: "PATIENT";
+}
+
+interface NavSection {
+  id: string;
+  title: string;
+  items: NavItem[];
+}
+
 export function HeaderNav() {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -16,6 +29,9 @@ export function HeaderNav() {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [activeSection, setActiveSection] = useState<string | null>(null);
+  const navRef = useRef<HTMLDivElement>(null);
+  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     const checkTheme = () => {
@@ -26,6 +42,35 @@ export function HeaderNav() {
     };
     checkTheme();
   }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (navRef.current && !navRef.current.contains(event.target as Node)) {
+        setActiveSection(null);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const handleMouseEnterSection = (sectionId: string) => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+      hoverTimeoutRef.current = null;
+    }
+    setActiveSection(sectionId);
+  };
+
+  const handleMouseLeaveSection = () => {
+    hoverTimeoutRef.current = setTimeout(() => {
+      setActiveSection(null);
+    }, 150);
+  };
 
   const toggleTheme = () => {
     const newTheme = theme === "light" ? "dark" : "light";
@@ -39,25 +84,41 @@ export function HeaderNav() {
     }
   };
 
-
-
-  const navLinks = [
-    { href: "/dashboard", label: "Dashboard" },
-    { href: "/visualize-body", label: "Visualize Body" },
-    { href: "/detect-disease", label: "Detect Disease" },
-    { href: "/chat-with-hippo", label: "Chat with Hippo" },
-    { href: "/health-metrics", label: "Health Metrics" },
-    ...(session?.user?.role === "PATIENT"
-      ? [{ href: "/tasks-diet", label: "Tasks & Diet" }]
-      : []),
-    { href: "/medical-history", label: "Medical History" },
-    ...(session?.user?.role === "PATIENT"
-      ? [{ href: "/conversations", label: "Conversations" }]
-      : []),
-    { href: "/chat", label: "Clinical Chat" },
-    ...(session?.user?.role === "PATIENT"
-      ? [{ href: "/manage-doctors", label: "Manage Doctors" }]
-      : []),
+  const navSections: NavSection[] = [
+    {
+      id: "dashboard",
+      title: "Dashboard",
+      items: [
+        { href: "/dashboard", label: "Dashboard", icon: "dashboard" }
+      ],
+    },
+    {
+      id: "health-analysis",
+      title: "Health & Diagnostics",
+      items: [
+        { href: "/detect-disease", label: "Detect Disease", icon: "biotech" },
+        { href: "/visualize-body", label: "Visualize Body", icon: "accessibility_new" },
+        { href: "/health-metrics", label: "Health Metrics", icon: "monitoring" },
+        { href: "/medical-history", label: "Medical History", icon: "history" },
+      ],
+    },
+    {
+      id: "hippo-ai",
+      title: "Hippo AI",
+      items: [
+        { href: "/chat-with-hippo", label: "Chat with Hippo", icon: "smart_toy" }
+      ],
+    },
+    {
+      id: "clinical-care",
+      title: "Clinical Care",
+      items: [
+        { href: "/manage-doctors", label: "Manage Doctors", icon: "medical_services", role: "PATIENT" },
+        { href: "/tasks-diet", label: "Tasks & Diet", icon: "restaurant", role: "PATIENT" },
+        { href: "/conversations", label: "Conversations", icon: "forum", role: "PATIENT" },
+        { href: "/chat", label: "Clinical Chat", icon: "chat" },
+      ],
+    },
   ];
 
   const publicLinks = [
@@ -94,29 +155,102 @@ export function HeaderNav() {
         </Link>
 
         {/* Desktop Navigation Links */}
-        <nav className="hidden md:flex items-center gap-0.5 lg:gap-1 xl:gap-1.5 py-1">
+        <nav ref={navRef} className="hidden md:flex items-center gap-1 xl:gap-2 py-1 relative">
           {status === "authenticated"
-            ? navLinks.map((link) => {
-                const isActive = pathname === link.href;
+            ? navSections.map((section) => {
+                const visibleItems = section.items.filter(
+                  (item) => !item.role || session?.user?.role === item.role
+                );
+                if (visibleItems.length === 0) return null;
+
+                const isSectionActive = visibleItems.some(
+                  (item) => pathname === item.href
+                );
+                const isDropdownOpen = activeSection === section.id;
+
+                if (visibleItems.length === 1) {
+                  const singleItem = visibleItems[0];
+                  return (
+                    <Link
+                      key={section.id}
+                      href={singleItem.href}
+                      className={`whitespace-nowrap px-3 py-1.5 text-xs xl:text-[13px] rounded-lg transition-all font-sans font-medium flex items-center gap-1.5 ${
+                        isSectionActive
+                          ? "font-semibold bg-[#8C6B1F]/12 dark:bg-[#D4AF37]/20 text-[#8C6B1F] dark:text-[#F0D580] shadow-xs border border-[#8C6B1F]/20 dark:border-[#D4AF37]/30"
+                          : "text-[#4D493E] dark:text-zinc-300 hover:text-[#1C1B18] dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 border border-transparent"
+                      }`}
+                    >
+                      <MaterialIcon name={singleItem.icon} className="text-base" />
+                      <span>{section.title}</span>
+                    </Link>
+                  );
+                }
+
                 return (
-                  <Link
-                    key={link.href}
-                    href={link.href}
-                    className={`whitespace-nowrap px-2 py-1 lg:px-2.5 lg:py-1.5 xl:px-3 text-[11px] lg:text-xs xl:text-[13px] rounded-lg transition-all font-sans ${
-                      isActive
-                        ? "font-semibold bg-[#8C6B1F]/12 dark:bg-[#D4AF37]/20 text-[#8C6B1F] dark:text-[#F0D580] shadow-xs border border-[#8C6B1F]/20 dark:border-[#D4AF37]/30"
-                        : "font-medium text-[#4D493E] dark:text-zinc-300 hover:text-[#1C1B18] dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 border border-transparent"
-                    }`}
+                  <div
+                    key={section.id}
+                    className="relative"
+                    onMouseEnter={() => handleMouseEnterSection(section.id)}
+                    onMouseLeave={handleMouseLeaveSection}
                   >
-                    {link.label}
-                  </Link>
+                    <button
+                      onClick={() => {
+                        if (hoverTimeoutRef.current) {
+                          clearTimeout(hoverTimeoutRef.current);
+                          hoverTimeoutRef.current = null;
+                        }
+                        setActiveSection(isDropdownOpen ? null : section.id);
+                      }}
+                      className={`whitespace-nowrap px-3 py-1.5 text-xs xl:text-[13px] rounded-lg transition-all font-sans font-medium flex items-center gap-1.5 cursor-pointer ${
+                        isSectionActive || isDropdownOpen
+                          ? "font-semibold bg-[#8C6B1F]/12 dark:bg-[#D4AF37]/20 text-[#8C6B1F] dark:text-[#F0D580] shadow-xs border border-[#8C6B1F]/20 dark:border-[#D4AF37]/30"
+                          : "text-[#4D493E] dark:text-zinc-300 hover:text-[#1C1B18] dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 border border-transparent"
+                      }`}
+                    >
+                      <span>{section.title}</span>
+                      <MaterialIcon
+                        name="keyboard_arrow_down"
+                        className={`text-sm transition-transform duration-200 ${
+                          isDropdownOpen ? "rotate-180" : ""
+                        }`}
+                      />
+                    </button>
+
+                    {isDropdownOpen && (
+                      <div className="absolute top-full left-0 pt-1.5 w-52 z-50 animate-fade-in font-sans">
+                        <div className="rounded-xl border border-[#E6E1D3] dark:border-zinc-800 bg-[#FAF9F5] dark:bg-zinc-900 p-1.5 shadow-xl">
+                          {visibleItems.map((item) => {
+                            const isActive = pathname === item.href;
+                            return (
+                              <Link
+                                key={item.href}
+                                href={item.href}
+                                onClick={() => setActiveSection(null)}
+                                className={`flex items-center gap-2.5 px-3 py-2 text-xs rounded-lg transition-colors ${
+                                  isActive
+                                    ? "font-bold text-[#8C6B1F] dark:text-[#F0D580] bg-[#8C6B1F]/10 dark:bg-[#D4AF37]/20"
+                                    : "font-medium text-[#4D493E] dark:text-zinc-300 hover:text-[#1C1B18] dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5"
+                                }`}
+                              >
+                                <MaterialIcon
+                                  name={item.icon}
+                                  className="text-base shrink-0"
+                                />
+                                <span>{item.label}</span>
+                              </Link>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 );
               })
             : publicLinks.map((link) => (
                 <Link
                   key={link.href}
                   href={link.href}
-                  className="whitespace-nowrap px-2 py-1 lg:px-2.5 lg:py-1.5 xl:px-3 text-[11px] lg:text-xs xl:text-[13px] font-medium text-[#4D493E] dark:text-zinc-300 hover:text-[#1C1B18] dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all font-sans"
+                  className="whitespace-nowrap px-2.5 py-1.5 text-xs xl:text-[13px] font-medium text-[#4D493E] dark:text-zinc-300 hover:text-[#1C1B18] dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all font-sans"
                 >
                   {link.label}
                 </Link>
@@ -283,22 +417,39 @@ export function HeaderNav() {
       {/* Mobile Drawer */}
       {mobileMenuOpen && (
         <div className="md:hidden bg-[#F6F4EF] dark:bg-zinc-900 border-b border-[#E6E1D3] dark:border-zinc-800 px-6 py-6 space-y-4">
-          <nav className="flex flex-col gap-3 text-sm font-medium text-[#1C1B18] dark:text-zinc-200">
+          <nav className="flex flex-col gap-4 text-sm font-medium text-[#1C1B18] dark:text-zinc-200">
             {status === "authenticated"
-              ? navLinks.map((link) => (
-                  <Link
-                    key={link.href}
-                    href={link.href}
-                    onClick={() => setMobileMenuOpen(false)}
-                    className={`py-1.5 border-b border-[#E8E2D4] dark:border-zinc-800 ${
-                      pathname === link.href
-                        ? "font-bold text-[#8C6B1F] dark:text-[#D4AF37]"
-                        : "font-medium text-[#1C1B18] dark:text-zinc-200 hover:text-[#8C6B1F]"
-                    }`}
-                  >
-                    {link.label}
-                  </Link>
-                ))
+              ? navSections.map((section) => {
+                  const visibleItems = section.items.filter(
+                    (item) => !item.role || session?.user?.role === item.role
+                  );
+                  if (visibleItems.length === 0) return null;
+
+                  return (
+                    <div key={section.id} className="space-y-1">
+                      <div className="text-[10px] font-bold tracking-wider text-[#8C6B1F] dark:text-[#D4AF37] uppercase px-2 py-0.5">
+                        {section.title}
+                      </div>
+                      <div className="flex flex-col gap-0.5">
+                        {visibleItems.map((item) => (
+                          <Link
+                            key={item.href}
+                            href={item.href}
+                            onClick={() => setMobileMenuOpen(false)}
+                            className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs transition-colors ${
+                              pathname === item.href
+                                ? "font-bold text-[#8C6B1F] dark:text-[#D4AF37] bg-[#8C6B1F]/10 dark:bg-[#D4AF37]/15"
+                                : "font-medium text-[#1C1B18] dark:text-zinc-200 hover:text-[#8C6B1F] hover:bg-black/5 dark:hover:bg-white/5"
+                            }`}
+                          >
+                            <MaterialIcon name={item.icon} className="text-base" />
+                            <span>{item.label}</span>
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })
               : publicLinks.map((link) => (
                   <Link
                     key={link.href}
@@ -398,4 +549,3 @@ export function HeaderNav() {
     </header>
   );
 }
-

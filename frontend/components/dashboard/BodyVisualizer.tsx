@@ -1076,17 +1076,6 @@ export default function BodyVisualizer() {
             <span className="material-symbols-outlined text-[12px]">timeline</span>
             Part Timeline
           </button>
-          <button
-            onClick={() => setRightTab("report")}
-            className={`flex-1 py-2 rounded-xl text-[10px] font-bold uppercase tracking-wide transition-all cursor-pointer flex items-center justify-center gap-1 font-sans ${
-              rightTab === "report"
-                ? "bg-[#1C1B18] text-white"
-                : "text-[#787363] hover:text-[#1C1B18] bg-transparent"
-            }`}
-          >
-            <span className="material-symbols-outlined text-[12px]">add_circle</span>
-            Report New Problem
-          </button>
         </div>
 
         {/* Part Timeline section */}

@@ -531,6 +531,43 @@ export default function PatientsDashboard() {
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedPatientId) return;
+
+    // Data Validation
+    if (profileForm.dob) {
+      const birthDate = new Date(profileForm.dob);
+      const today = new Date();
+      const todayZero = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      const birthZero = new Date(birthDate.getFullYear(), birthDate.getMonth(), birthDate.getDate());
+
+      if (isNaN(birthDate.getTime()) || birthZero > todayZero) {
+        alert("Validation Error: Date of birth cannot be in the future.");
+        return;
+      }
+      let age = today.getFullYear() - birthDate.getFullYear();
+      const m = today.getMonth() - birthDate.getMonth();
+      if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--;
+      if (age < 0 || age > 130) {
+        alert("Validation Error: Please enter a valid date of birth (age between 0 and 130 years).");
+        return;
+      }
+    }
+
+    if (profileForm.heightCm) {
+      const h = parseFloat(profileForm.heightCm);
+      if (isNaN(h) || h <= 0 || h < 30 || h > 300) {
+        alert("Validation Error: Height must be a positive number between 30 cm and 300 cm.");
+        return;
+      }
+    }
+
+    if (profileForm.weightKg) {
+      const w = parseFloat(profileForm.weightKg);
+      if (isNaN(w) || w <= 0 || w < 1 || w > 500) {
+        alert("Validation Error: Weight must be a positive number between 1 kg and 500 kg.");
+        return;
+      }
+    }
+
     setSaveLoading(true);
     try {
       const resp = await fetch("/api/doctor/update-patient-profile", {
@@ -539,7 +576,14 @@ export default function PatientsDashboard() {
         body: JSON.stringify({ patientId: selectedPatientId, ...profileForm }),
       });
       if (!resp.ok) {
-        throw new Error(await resp.text() || "Failed to update profile.");
+        let errText = "Failed to update profile.";
+        try {
+          const jsonErr = await resp.json();
+          errText = jsonErr.message || errText;
+        } catch (e) {
+          errText = await resp.text() || errText;
+        }
+        throw new Error(errText);
       }
       await fetchPatients();
       setIsEditingProfile(false);
@@ -750,12 +794,14 @@ export default function PatientsDashboard() {
   const calculateAge = (dobString: string | null) => {
     if (!dobString) return "N/A";
     const birthDate = new Date(dobString);
+    if (isNaN(birthDate.getTime())) return "N/A";
     const today = new Date();
     let age = today.getFullYear() - birthDate.getFullYear();
     const m = today.getMonth() - birthDate.getMonth();
     if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
       age--;
     }
+    if (age < 0 || age > 130) return "N/A";
     return `${age} yrs`;
   };
 
@@ -955,13 +1001,7 @@ export default function PatientsDashboard() {
                 <div className="max-w-4xl space-y-6">
                   <div className="flex justify-between items-center border-b border-[#FAF6E8] pb-3">
                     <h4 className="font-serif text-base font-bold text-[#1C1B18]">Biological Profile & Clinical History</h4>
-                    <button
-                      onClick={() => setIsEditingProfile(!isEditingProfile)}
-                      className="px-4 py-2 border border-[#8C6B1F] text-[#8C6B1F] hover:bg-[#FAF6E8] rounded-xl text-[10px] font-bold uppercase transition-all flex items-center gap-1.5 cursor-pointer"
-                    >
-                      <MaterialIcon name={isEditingProfile ? "close" : "edit"} className="text-sm" />
-                      <span>{isEditingProfile ? "Cancel" : "Edit Profile"}</span>
-                    </button>
+                    
                   </div>
 
                   {!isEditingProfile ? (

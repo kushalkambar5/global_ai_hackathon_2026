@@ -126,30 +126,7 @@ export function Footer() {
             </ul>
           </div>
 
-          {/* Newsletter Column */}
-          <div className="md:col-span-3 space-y-4">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-[#F4E071]">
-              Clinical AI Updates
-            </h4>
-            <p className="text-xs text-[#AAA595]">
-              Subscribe for monthly updates on clinical model releases and medical research.
-            </p>
-
-            <div className="flex items-center gap-2">
-              <input
-                type="email"
-                placeholder="Enter doctor or clinic email"
-                className="w-full bg-[#252420] border border-[#3A3831] rounded-xl px-3 py-2 text-xs text-white placeholder-[#787363] focus:outline-none focus:ring-1 focus:ring-[#F4E071]"
-              />
-              <button
-                onClick={() => alert("Subscribed to Hippo Health Clinical Updates!")}
-                className="bg-[#F4E071] text-[#1C1B18] p-2 rounded-xl hover:bg-[#E8C838] transition-colors"
-                aria-label="Subscribe"
-              >
-                <MaterialIcon name="arrow_forward" className="text-base text-[#1C1B18]" />
-              </button>
-            </div>
-          </div>
+          
 
         </div>
 

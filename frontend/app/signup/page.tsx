@@ -17,16 +17,50 @@ export default function SignupPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
 
+  const [fieldErrors, setFieldErrors] = useState<{ [key: string]: string }>({});
+
+  const validateForm = () => {
+    const errors: { [key: string]: string } = {};
+
+    const trimmedName = fullName.trim();
+    if (!trimmedName) {
+      errors.fullName = "Full name is required.";
+    } else if (trimmedName.length < 2) {
+      errors.fullName = "Full name must be at least 2 characters.";
+    } else if (!/^[a-zA-Z\s.'-]+$/.test(trimmedName)) {
+      errors.fullName = "Full name contains invalid characters.";
+    }
+
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) {
+      errors.email = "Email address is required.";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      errors.email = "Please enter a valid email address.";
+    }
+
+    if (!password) {
+      errors.password = "Password is required.";
+    } else if (password.length < 6) {
+      errors.password = "Password must be at least 6 characters long.";
+    }
+
+    if (!role || (role !== "PATIENT" && role !== "DOCTOR")) {
+      errors.role = "Please select a valid role.";
+    }
+
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    setLoading(true);
 
-    if (!fullName || !email || !password || !role) {
-      setError("Please fill out all fields.");
-      setLoading(false);
+    if (!validateForm()) {
       return;
     }
+
+    setLoading(true);
 
     try {
       const response = await fetch("/api/register", {
@@ -35,8 +69,8 @@ export default function SignupPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          fullName,
-          email,
+          fullName: fullName.trim(),
+          email: email.trim().toLowerCase(),
           password,
           role,
         }),
@@ -53,7 +87,7 @@ export default function SignupPage() {
       // Auto sign in user
       const result = await signIn("credentials", {
         redirect: false,
-        email,
+        email: email.trim().toLowerCase(),
         password,
       });
 
@@ -120,12 +154,7 @@ export default function SignupPage() {
           </div>
         )}
 
-        {success && (
-          <div className="bg-[#E6F4EA] border border-[#C2E7CD] text-[#137333] p-4 rounded-xl flex items-start gap-3 font-sans text-sm">
-            <MaterialIcon name="check_circle" className="text-xl text-[#137333] shrink-0 mt-0.5" />
-            <span>Account created! Logging in and redirecting to onboarding...</span>
-          </div>
-        )}
+        
 
         <form className="mt-8 space-y-6 relative" onSubmit={handleSubmit}>
           <div className="space-y-4">
@@ -144,12 +173,29 @@ export default function SignupPage() {
                   type="text"
                   required
                   value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
+                  onChange={(e) => {
+                    setFullName(e.target.value);
+                    if (fieldErrors.fullName) {
+                      setFieldErrors((prev) => {
+                        const copy = { ...prev };
+                        delete copy.fullName;
+                        return copy;
+                      });
+                    }
+                  }}
                   disabled={loading || success}
-                  className="block w-full pl-11 pr-4 py-3 bg-white border border-[#DCD5C5] rounded-xl text-[#1C1B18] placeholder-[#A8A28E] focus:outline-hidden focus:ring-2 focus:ring-[#8C6B1F]/30 focus:border-[#8C6B1F] transition-all font-sans text-sm"
+                  className={`block w-full pl-11 pr-4 py-3 bg-white border ${
+                    fieldErrors.fullName ? "border-red-500 ring-1 ring-red-500" : "border-[#DCD5C5]"
+                  } rounded-xl text-[#1C1B18] placeholder-[#A8A28E] focus:outline-hidden focus:ring-2 focus:ring-[#8C6B1F]/30 focus:border-[#8C6B1F] transition-all font-sans text-sm`}
                   placeholder="John Doe"
                 />
               </div>
+              {fieldErrors.fullName && (
+                <p className="mt-1.5 text-xs text-red-600 font-sans flex items-center gap-1">
+                  <MaterialIcon name="error" className="text-sm" />
+                  <span>{fieldErrors.fullName}</span>
+                </p>
+              )}
             </div>
 
             {/* Email Address */}
@@ -168,12 +214,29 @@ export default function SignupPage() {
                   autoComplete="email"
                   required
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    if (fieldErrors.email) {
+                      setFieldErrors((prev) => {
+                        const copy = { ...prev };
+                        delete copy.email;
+                        return copy;
+                      });
+                    }
+                  }}
                   disabled={loading || success}
-                  className="block w-full pl-11 pr-4 py-3 bg-white border border-[#DCD5C5] rounded-xl text-[#1C1B18] placeholder-[#A8A28E] focus:outline-hidden focus:ring-2 focus:ring-[#8C6B1F]/30 focus:border-[#8C6B1F] transition-all font-sans text-sm"
+                  className={`block w-full pl-11 pr-4 py-3 bg-white border ${
+                    fieldErrors.email ? "border-red-500 ring-1 ring-red-500" : "border-[#DCD5C5]"
+                  } rounded-xl text-[#1C1B18] placeholder-[#A8A28E] focus:outline-hidden focus:ring-2 focus:ring-[#8C6B1F]/30 focus:border-[#8C6B1F] transition-all font-sans text-sm`}
                   placeholder="name@example.com"
                 />
               </div>
+              {fieldErrors.email && (
+                <p className="mt-1.5 text-xs text-red-600 font-sans flex items-center gap-1">
+                  <MaterialIcon name="error" className="text-sm" />
+                  <span>{fieldErrors.email}</span>
+                </p>
+              )}
             </div>
 
             {/* Password */}
@@ -191,12 +254,29 @@ export default function SignupPage() {
                   type="password"
                   required
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    if (fieldErrors.password) {
+                      setFieldErrors((prev) => {
+                        const copy = { ...prev };
+                        delete copy.password;
+                        return copy;
+                      });
+                    }
+                  }}
                   disabled={loading || success}
-                  className="block w-full pl-11 pr-4 py-3 bg-white border border-[#DCD5C5] rounded-xl text-[#1C1B18] placeholder-[#A8A28E] focus:outline-hidden focus:ring-2 focus:ring-[#8C6B1F]/30 focus:border-[#8C6B1F] transition-all font-sans text-sm"
-                  placeholder="••••••••"
+                  className={`block w-full pl-11 pr-4 py-3 bg-white border ${
+                    fieldErrors.password ? "border-red-500 ring-1 ring-red-500" : "border-[#DCD5C5]"
+                  } rounded-xl text-[#1C1B18] placeholder-[#A8A28E] focus:outline-hidden focus:ring-2 focus:ring-[#8C6B1F]/30 focus:border-[#8C6B1F] transition-all font-sans text-sm`}
+                  placeholder="•••••••• (min. 6 characters)"
                 />
               </div>
+              {fieldErrors.password && (
+                <p className="mt-1.5 text-xs text-red-600 font-sans flex items-center gap-1">
+                  <MaterialIcon name="error" className="text-sm" />
+                  <span>{fieldErrors.password}</span>
+                </p>
+              )}
             </div>
 
             {/* Role Selection */}

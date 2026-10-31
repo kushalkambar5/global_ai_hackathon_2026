@@ -133,6 +133,21 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ message: 'All fields (email, password, fullName, role) are required.' });
     }
 
+    const trimmedEmail = email.toLowerCase().trim();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      return res.status(400).json({ message: 'Please provide a valid email address.' });
+    }
+
+    const trimmedName = fullName.trim();
+    if (trimmedName.length < 2 || trimmedName.length > 100) {
+      return res.status(400).json({ message: 'Full name must be between 2 and 100 characters.' });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({ message: 'Password must be at least 6 characters long.' });
+    }
+
     if (role !== 'PATIENT' && role !== 'DOCTOR') {
       return res.status(400).json({ message: 'Invalid role. Role must be PATIENT or DOCTOR.' });
     }
@@ -140,7 +155,7 @@ router.post('/register', async (req, res) => {
     const [existingUser] = await db
       .select()
       .from(users)
-      .where(eq(users.email, email.toLowerCase().trim()));
+      .where(eq(users.email, trimmedEmail));
 
     if (existingUser) {
       return res.status(400).json({ message: 'An account with this email already exists.' });
@@ -151,9 +166,9 @@ router.post('/register', async (req, res) => {
     const [newUser] = await db
       .insert(users)
       .values({
-        email: email.toLowerCase().trim(),
+        email: trimmedEmail,
         passwordHash,
-        fullName,
+        fullName: trimmedName,
         role,
         onboardingComplete: false,
       })
@@ -241,6 +256,60 @@ router.post('/onboarding', authenticateProxyUser, upload.single('profileImage'),
       .where(eq(users.id, userId));
 
     const role = userRecord?.role || req.user.role;
+
+    // Validation
+    if (fullName && (fullName.trim().length < 2 || fullName.trim().length > 100)) {
+      return res.status(400).json({ message: 'Full name must be between 2 and 100 characters.' });
+    }
+
+    if (dob) {
+      const birthDate = new Date(dob);
+      const today = new Date();
+      const todayZero = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      const birthZero = new Date(birthDate.getFullYear(), birthDate.getMonth(), birthDate.getDate());
+
+      if (isNaN(birthDate.getTime()) || birthZero > todayZero) {
+        return res.status(400).json({ message: 'Date of birth cannot be in the future (negative age).' });
+      }
+
+      let age = today.getFullYear() - birthDate.getFullYear();
+      const m = today.getMonth() - birthDate.getMonth();
+      if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--;
+
+      if (age < 0 || age > 150) {
+        return res.status(400).json({ message: 'Age must be between 0 and 150 years.' });
+      }
+    }
+
+    if (heightCm) {
+      const h = parseFloat(heightCm);
+      if (isNaN(h) || h <= 0 || h < 30 || h > 300) {
+        return res.status(400).json({ message: 'Height must be a positive number between 30 cm and 300 cm.' });
+      }
+    }
+
+    if (weightKg) {
+      const w = parseFloat(weightKg);
+      if (isNaN(w) || w <= 0 || w < 1 || w > 500) {
+        return res.status(400).json({ message: 'Weight must be a positive number between 1 kg and 500 kg.' });
+      }
+    }
+
+    if (gender && !['MALE', 'FEMALE', 'OTHER'].includes(gender)) {
+      return res.status(400).json({ message: 'Invalid gender selection.' });
+    }
+
+    const validBloodGroups = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+    if (bloodGroup && !validBloodGroups.includes(bloodGroup)) {
+      return res.status(400).json({ message: 'Invalid blood group selection.' });
+    }
+
+    if (emergencyContact && emergencyContact.trim()) {
+      const phoneRegex = /^(\+?[0-9\s\-()]{7,20})$/;
+      if (!phoneRegex.test(emergencyContact.trim())) {
+        return res.status(400).json({ message: 'Emergency contact must be a valid phone number (at least 7 digits).' });
+      }
+    }
 
     if (role === 'PATIENT') {
       await db.transaction(async (tx) => {
@@ -469,6 +538,43 @@ router.post('/doctor/update-patient-profile', authenticateProxyUser, async (req,
 
     if (!patientId) {
       return res.status(400).json({ message: 'Patient ID is required.' });
+    }
+
+    if (fullName && (fullName.trim().length < 2 || fullName.trim().length > 100)) {
+      return res.status(400).json({ message: 'Full name must be between 2 and 100 characters.' });
+    }
+
+    if (dob) {
+      const birthDate = new Date(dob);
+      const today = new Date();
+      const todayZero = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      const birthZero = new Date(birthDate.getFullYear(), birthDate.getMonth(), birthDate.getDate());
+
+      if (isNaN(birthDate.getTime()) || birthZero > todayZero) {
+        return res.status(400).json({ message: 'Date of birth cannot be in the future (negative age).' });
+      }
+
+      let age = today.getFullYear() - birthDate.getFullYear();
+      const m = today.getMonth() - birthDate.getMonth();
+      if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--;
+
+      if (age < 0 || age > 150) {
+        return res.status(400).json({ message: 'Age must be between 0 and 150 years.' });
+      }
+    }
+
+    if (heightCm) {
+      const h = parseFloat(heightCm);
+      if (isNaN(h) || h <= 0 || h < 30 || h > 300) {
+        return res.status(400).json({ message: 'Height must be a positive number between 30 cm and 300 cm.' });
+      }
+    }
+
+    if (weightKg) {
+      const w = parseFloat(weightKg);
+      if (isNaN(w) || w <= 0 || w < 1 || w > 500) {
+        return res.status(400).json({ message: 'Weight must be a positive number between 1 kg and 500 kg.' });
+      }
     }
 
     await db
