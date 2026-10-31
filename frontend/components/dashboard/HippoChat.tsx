@@ -15,12 +15,60 @@ interface HippoChatProps {
   patientId?: string;
 }
 
+// Normalize one stored ai_chats entry into a chat Message.
+// Handles canonical {chat_text, created_at, created_by} plus legacy
+// variants ({text/content, timestamp/createdAt, role/sender}).
+function toMessage(c: unknown, idx: number): Message | null {
+  if (!c || typeof c !== "object") return null;
+  const obj = c as Record<string, unknown>;
+  const text =
+    typeof obj.chat_text === "string"
+      ? obj.chat_text
+      : typeof obj.text === "string"
+        ? obj.text
+        : typeof obj.content === "string"
+          ? obj.content
+          : "";
+  if (!text.trim()) return null;
+  const sender = obj.created_by ?? obj.sender ?? obj.role ?? obj.createdBy ?? "user";
+  const role: "user" | "assistant" =
+    sender === "ai" || sender === "assistant" ? "assistant" : "user";
+  const rawTs = (obj.created_at ?? obj.timestamp ?? obj.createdAt ?? null) as string | null;
+  let timestamp = "";
+  if (rawTs) {
+    const d = new Date(rawTs);
+    timestamp = isNaN(d.getTime())
+      ? ""
+      : d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  }
+  return { id: `history-${idx}-${rawTs || idx}`, role, content: text, timestamp };
+}
+
+function parseStoredChats(raw: unknown): Message[] {
+  let arr: unknown = raw;
+  if (typeof arr === "string") {
+    try {
+      arr = JSON.parse(arr);
+    } catch {
+      return [];
+    }
+  }
+  if (!Array.isArray(arr)) return [];
+  // DB keeps oldest->newest capped at 10; preserve that order.
+  return arr
+    .slice(-10)
+    .map((c, idx) => toMessage(c, idx))
+    .filter((m): m is Message => m !== null);
+}
+
 export default function HippoChat({ fullHeight = false, patientId }: HippoChatProps) {
-  const { data: session } = useSession();
+  const { data: session, status: sessionStatus } = useSession();
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const [agentStatus, setAgentStatus] = useState<string>("OpenAI Agent SDK");
+  const [chatSummary, setChatSummary] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Active patient ID: passed via prop or retrieved from logged in user
@@ -33,6 +81,57 @@ export default function HippoChat({ fullHeight = false, patientId }: HippoChatPr
   useEffect(() => {
     scrollToBottom();
   }, [messages, isLoading]);
+
+  // Load persisted chat history (recent 10) from ai_chats on mount /
+  // whenever the active patient changes.
+  useEffect(() => {
+    // Wait for auth to resolve before deciding there is "no patient".
+    if (sessionStatus === "loading") return;
+    if (!activePatientId) {
+      setIsLoadingHistory(false);
+      return;
+    }
+
+    let cancelled = false;
+    async function loadHistory() {
+      try {
+        setIsLoadingHistory(true);
+        const url = `/api/chat/history?patientId=${encodeURIComponent(activePatientId)}`;
+        const res = await fetch(url, {
+          headers: { "x-user-id": activePatientId },
+          cache: "no-store",
+        });
+        if (!res.ok) {
+          console.warn(`[HippoChat] history fetch failed: ${res.status}`);
+          return;
+        }
+        const data = await res.json();
+        if (cancelled) return;
+        if (data.chatSummary) setChatSummary(data.chatSummary);
+        else if (data.chatSummary === null) setChatSummary(null);
+        const loaded = parseStoredChats(data.chats);
+        if (loaded.length > 0) {
+          // Merge with any in-flight messages (user may have sent before
+          // history finished loading) instead of clobbering them.
+          setMessages((prev) => {
+            if (prev.length === 0) return loaded;
+            const seen = new Set(loaded.map((m) => `${m.role}::${m.content.trim()}`));
+            const extras = prev.filter((m) => !seen.has(`${m.role}::${m.content.trim()}`));
+            return [...loaded, ...extras].slice(-20);
+          });
+        }
+      } catch (err) {
+        console.error("Failed to load chat history:", err);
+      } finally {
+        if (!cancelled) setIsLoadingHistory(false);
+      }
+    }
+
+    loadHistory();
+    return () => {
+      cancelled = true;
+    };
+  }, [activePatientId, sessionStatus]);
 
   // Fetch initial Agent SDK status
   useEffect(() => {
@@ -102,6 +201,30 @@ export default function HippoChat({ fullHeight = false, patientId }: HippoChatPr
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
+
+      // Prefer the authoritative persisted state echoed back by POST /api/chat
+      // (recent 10 + fresh rolling summary) — avoids a racy second fetch.
+      if (data.chatSummary) {
+        setChatSummary(data.chatSummary);
+      } else if (Array.isArray(data.chats) && data.chats.length > 0) {
+        // POST returned chats but summary pending — fall through to refresh.
+      }
+      if (!data.chatSummary && activePatientId) {
+        // Refresh summary from backend after each exchange (fallback path
+        // for older backends that don't echo chatSummary in POST).
+        try {
+          const histRes = await fetch(`/api/chat/history?patientId=${encodeURIComponent(activePatientId)}`, {
+            headers: { "x-user-id": activePatientId },
+            cache: "no-store",
+          });
+          if (histRes.ok) {
+            const histData = await histRes.json();
+            if (histData.chatSummary) setChatSummary(histData.chatSummary);
+          }
+        } catch {
+          // Non-fatal
+        }
+      }
     } catch (err: any) {
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -122,8 +245,19 @@ export default function HippoChat({ fullHeight = false, patientId }: HippoChatPr
     }
   };
 
-  const handleClearChat = () => {
+  const handleClearChat = async () => {
     setMessages([]);
+    setChatSummary(null);
+    if (activePatientId) {
+      try {
+        await fetch(`/api/chat/history?patientId=${encodeURIComponent(activePatientId)}`, {
+          method: "DELETE",
+          headers: { "x-user-id": activePatientId },
+        });
+      } catch (err) {
+        console.error("Failed to clear backend chat history:", err);
+      }
+    }
   };
 
   const quickPrompts = [
@@ -218,6 +352,14 @@ export default function HippoChat({ fullHeight = false, patientId }: HippoChatPr
             <div className="flex items-center gap-2">
               <h2 className="font-serif font-bold text-base text-[#1C1B18]">Hippo AI Assistant</h2>
             </div>
+            {chatSummary && (
+              <p
+                className="text-[11px] text-[#787363] leading-snug max-w-xs sm:max-w-sm truncate mt-0.5"
+                title={chatSummary}
+              >
+                {chatSummary}
+              </p>
+            )}
           </div>
         </div>
 
@@ -235,7 +377,12 @@ export default function HippoChat({ fullHeight = false, patientId }: HippoChatPr
 
       {/* Main Chat Messages Window */}
       <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 space-y-4 font-sans bg-[#FAF9F5]">
-        {messages.length === 0 ? (
+        {isLoadingHistory ? (
+          <div className="h-full flex items-center justify-center">
+            <span className="animate-spin material-symbols-outlined text-3xl text-[#8C6B1F]">progress_activity</span>
+          </div>
+        ) : messages.length === 0 ? (
+
           <div className="h-full flex flex-col items-center justify-center text-center max-w-md mx-auto py-12">
             <div className="w-16 h-16 rounded-3xl bg-[#8C6B1F]/10 text-[#8C6B1F] flex items-center justify-center mb-4">
               <span className="material-symbols-outlined text-3xl">medical_services</span>

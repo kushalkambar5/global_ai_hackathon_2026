@@ -33,6 +33,7 @@ export const suggestionStatusEnum = pgEnum('suggestion_status', ['PENDING_REVIEW
 export const severityEnum = pgEnum('severity', ['MILD', 'MODERATE', 'SEVERE', 'CRITICAL']);
 export const taskTypeEnum = pgEnum('task_type', ['task_based', 'goal_based']);
 export const goalMetricEnum = pgEnum('goal_metric', ['daily_steps', 'calories_burn', 'min_sleep']);
+export const chatSenderEnum = pgEnum('chat_sender', ['user', 'ai']);
 
 // ==========================================
 // TABLES
@@ -245,3 +246,21 @@ export const conversations = pgTable('conversations', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
+
+// ==========================================
+// AI CHATS
+// ==========================================
+
+export const aiChats = pgTable('ai_chats', {
+  chatId: uuid('chat_id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  // List of up to 10 recent chat messages stored as JSONB array
+  // Each entry: { chat_text: string, created_at: string (ISO), created_by: 'user' | 'ai' }
+  chats: jsonb('chats').default([]).notNull(),
+  chatSummary: text('chat_summary'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => ({
+  unqUserChat: unique('unq_user_ai_chat').on(t.userId),
+}));
+

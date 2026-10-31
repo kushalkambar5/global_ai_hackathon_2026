@@ -1,7 +1,7 @@
 import express from 'express';
 import { Agent, run, tool } from '@openai/agents';
 import { db } from '../db/index.js';
-import { users, healthMetrics, tasks, medicalReports, diseaseScans, bodyMapConditions } from '../db/schema.js';
+import { users, healthMetrics, tasks, medicalReports, diseaseScans, bodyMapConditions, aiChats } from '../db/schema.js';
 import { eq, desc, and } from 'drizzle-orm';
 import { authenticateToken } from '../middleware/auth.js';
 
@@ -60,7 +60,7 @@ const getRecentHealthMetricsTool = tool({
         .select()
         .from(healthMetrics)
         .where(eq(healthMetrics.patientId, patientId))
-        .orderBy(desc(healthMetrics.recordedAt))
+        .orderBy(desc(healthMetrics.metricDate))
         .limit(10);
       return metrics.length > 0 ? metrics : { notice: 'No recent health metrics found.' };
     } catch (err) {
@@ -268,14 +268,105 @@ router.get('/status', (req, res) => {
 });
 
 /**
+ * Resolve the target user id for ai_chats lookups.
+ * Prefers an explicit query param (patientId/userId) so a doctor viewing a
+ * patient (or any caller passing ?patientId=X) reads/writes the patient's
+ * row even when the x-user-id proxy header holds a different (viewer) id.
+ * Falls back to the x-user-id header / body patientId for self-chat.
+ */
+function resolveAiChatUserId(req, bodyPatientId = null) {
+  const q = req.query || {};
+  const queryId = q.patientId || q.userId || q.user_id || null;
+  const headerId = req.headers ? req.headers['x-user-id'] : null;
+  const raw = queryId || bodyPatientId || headerId || null;
+  if (Array.isArray(raw)) return raw[0] || null;
+  if (typeof raw === 'string' && raw.trim() !== '') return raw.trim();
+  return raw || null;
+}
+
+/**
+ * Normalize the raw `chats` jsonb value into an array of
+ * { chat_text, created_at, created_by } capped at the last 10 entries.
+ * Handles legacy stringified JSON and malformed rows gracefully.
+ */
+function normalizeStoredChats(rawChats) {
+  let arr = rawChats;
+  if (typeof arr === 'string') {
+    try {
+      arr = JSON.parse(arr);
+    } catch {
+      arr = [];
+    }
+  }
+  if (!Array.isArray(arr)) return [];
+  return arr
+    .filter((c) => c && typeof c.chat_text === 'string' && c.chat_text.trim() !== '')
+    .slice(-10);
+}
+
+/**
+ * GET /api/chat/history
+ * Returns the stored ai_chats record for the authenticated user
+ * Response shape (always): { chats: [...up to 10...], chatSummary: string|null, updatedAt }
+ */
+router.get('/history', async (req, res) => {
+  const userId = resolveAiChatUserId(req);
+  if (!userId) return res.status(400).json({ error: 'x-user-id header or patientId query parameter is required.' });
+
+  try {
+    const [record] = await db
+      .select()
+      .from(aiChats)
+      .where(eq(aiChats.userId, userId));
+
+    if (!record) {
+      return res.json({ chats: [], chatSummary: null, updatedAt: null });
+    }
+
+    return res.json({
+      ...record,
+      chats: normalizeStoredChats(record.chats),
+      chatSummary: record.chatSummary || null,
+    });
+  } catch (err) {
+    console.error('[Chat History Error]', err);
+    return res.status(500).json({ error: 'Failed to fetch chat history.', detail: err.message });
+  }
+});
+
+/**
+ * DELETE /api/chat/history
+ * Clears stored ai_chats record for the authenticated user
+ */
+router.delete('/history', async (req, res) => {
+  const userId = resolveAiChatUserId(req, req.body?.patientId || req.body?.userId || null);
+  if (!userId) return res.status(400).json({ error: 'x-user-id header or patientId query parameter is required.' });
+
+  try {
+    await db
+      .delete(aiChats)
+      .where(eq(aiChats.userId, userId));
+
+    return res.json({ success: true, message: 'Chat history cleared' });
+  } catch (err) {
+    console.error('[Clear Chat History Error]', err);
+    return res.status(500).json({ error: 'Failed to clear chat history.', detail: err.message });
+  }
+});
+
+/**
  * POST /api/chat
- * Primary conversation endpoint for Hippo Chat using OpenAI Agent SDK
+ * Primary conversation endpoint for Hippo Chat using OpenAI Agent SDK.
+ * After each exchange, persists up to 10 recent messages to ai_chats
+ * and generates/updates a rolling chat summary.
  */
 router.post('/', async (req, res) => {
   try {
     const { message, history = [], patientId: bodyPatientId } = req.body;
-    const headerUserId = req.headers['x-user-id'];
-    const patientId = bodyPatientId || headerUserId || null;
+    const headerUserId = req.headers ? req.headers['x-user-id'] : null;
+    // Prefer explicit body patientId (patient self-chat or doctor-viewing-patient),
+    // fall back to proxy header, then explicit query param.
+    const patientId = resolveAiChatUserId(req, bodyPatientId || headerUserId || null);
 
     if (!message || typeof message !== 'string' || message.trim() === '') {
       return res.status(400).json({ error: 'Message text is required.' });
@@ -286,6 +377,28 @@ router.post('/', async (req, res) => {
     }
 
     const agentModel = process.env.OPENAI_MODEL || 'openai/gpt-oss-120b';
+
+    // -------------------------------------------------------
+    // Load persisted ai_chats context FIRST so the LLM actually
+    // sees prior turns + the rolling chat_summary (fixes: summary
+    // was generated but never fed back into requests).
+    // -------------------------------------------------------
+    let storedChats = [];
+    let storedSummary = null;
+    if (patientId) {
+      try {
+        const [existingCtx] = await db
+          .select()
+          .from(aiChats)
+          .where(eq(aiChats.userId, patientId));
+        if (existingCtx) {
+          storedChats = normalizeStoredChats(existingCtx.chats);
+          storedSummary = existingCtx.chatSummary || null;
+        }
+      } catch (ctxErr) {
+        console.error('[ai_chats Context Load Error]', ctxErr.message);
+      }
+    }
 
     // Pre-fetch comprehensive patient clinical context (Reports, Scans, Profile, Metrics)
     let patientContextStr = '';
@@ -444,6 +557,13 @@ ${conditions.length > 0 ? JSON.stringify(conditions, null, 2) : 'No active body 
     }
 
     // System instructions for clinical agent
+    // NOTE: storedSummary (ai_chats.chat_summary) is injected here so every
+    // LLM call considers prior conversation context, even when only the last
+    // 10 raw messages fit in the prompt window.
+    const conversationMemoryBlock = storedSummary
+      ? `\n--- PREVIOUS CONVERSATION SUMMARY (rolling, from ai_chats.chat_summary) ---\n${storedSummary}\nUse this summary for continuity. If the user references earlier topics ("as I said before", "my previous symptoms"), resolve them from this summary + the conversation history below.\n`
+      : `\n--- PREVIOUS CONVERSATION SUMMARY ---\nNo prior summary yet (new conversation).\n`;
+
     let instructions = `You are Hippo Chat, an expert, concise, and empathetic clinical AI assistant for Hippo Health.
 Your goal is to provide clear, direct, and to-the-point answers to patients and healthcare professionals.
 
@@ -452,7 +572,7 @@ STRICT CONCISENESS & BREVITY RULE:
 - Avoid unnecessarily long walls of text, multi-section essays, or generic boilerplate unless explicitly requested.
 - For simple questions, deliver the answer in 2 to 4 crisp sentences or a tight bulleted list.
 - Get straight to the answer immediately.
-
+${conversationMemoryBlock}
 CRITICAL DATA SOURCE RULE — READ CAREFULLY:
 There are TWO completely separate data sources. NEVER mix them up:
 
@@ -503,20 +623,38 @@ ${patientContextStr}`;
       ],
     });
 
-    // Format prompt with history context
+    // Format prompt with history context.
+    // Source of truth is the DB (storedChats); client-supplied `history` is
+    // merged in only to cover turns not yet persisted (deduped by content).
     let fullPrompt = '';
     if (patientName) {
       fullPrompt += `[Patient: ${patientName}]\n\n`;
     }
 
+    const storedHistory = storedChats.map((c) => ({
+      role: c.created_by === 'ai' ? 'assistant' : 'user',
+      content: c.chat_text,
+    }));
+
+    let effectiveHistory = [...storedHistory];
     if (Array.isArray(history) && history.length > 0) {
-      fullPrompt += 'Conversation History:\n';
-      // Take up to last 10 messages for context efficiency
-      const recentHistory = history.slice(-10);
-      for (const msg of recentHistory) {
-        if (msg.role && msg.content) {
-          fullPrompt += `${msg.role.toUpperCase()}: ${msg.content}\n`;
+      const seen = new Set(storedHistory.map((m) => `${m.role}::${(m.content || '').trim()}`));
+      for (const msg of history) {
+        if (msg && msg.role && typeof msg.content === 'string' && msg.content.trim() !== '') {
+          const key = `${msg.role}::${msg.content.trim()}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            effectiveHistory.push({ role: msg.role, content: msg.content });
+          }
         }
+      }
+    }
+    effectiveHistory = effectiveHistory.slice(-10);
+
+    if (effectiveHistory.length > 0) {
+      fullPrompt += 'Conversation History (most recent last, up to 10 turns; use with the summary above for full context):\n';
+      for (const msg of effectiveHistory) {
+        fullPrompt += `${String(msg.role).toUpperCase()}: ${msg.content}\n`;
       }
       fullPrompt += '\nCurrent User Message:\n';
     }
@@ -525,17 +663,101 @@ ${patientContextStr}`;
 
     // Run the OpenAI Agent
     const agentResult = await run(agent, fullPrompt);
+    const aiResponseText = agentResult.finalOutput || 'No output produced.';
+
+    // -------------------------------------------------------
+    // Persist to ai_chats table (upsert per user, max 10 msgs)
+    // -------------------------------------------------------
+    let updatedChats = [];
+    let chatSummary = storedSummary || null;
+    if (patientId) {
+      try {
+        const now = new Date().toISOString();
+
+        // Re-load fresh (request may have raced with another tab); fall back
+        // to the snapshot loaded at request start.
+        let existing = null;
+        try {
+          const [fresh] = await db
+            .select()
+            .from(aiChats)
+            .where(eq(aiChats.userId, patientId));
+          existing = fresh || null;
+        } catch {
+          existing = null;
+        }
+        const prevChats = existing
+          ? normalizeStoredChats(existing.chats)
+          : [...storedChats];
+        if (existing?.chatSummary) chatSummary = existing.chatSummary;
+
+        // Build new message entries
+        const userEntry = { chat_text: message.trim(), created_at: now, created_by: 'user' };
+        const aiEntry   = { chat_text: aiResponseText,  created_at: new Date().toISOString(), created_by: 'ai' };
+
+        // Merge with existing chats, then trim to latest 10
+        updatedChats = [...prevChats, userEntry, aiEntry].slice(-10);
+
+        // 1. Immediately save chats to DB (summary follows in step 2)
+        if (existing) {
+          await db
+            .update(aiChats)
+            .set({ chats: updatedChats, updatedAt: new Date() })
+            .where(eq(aiChats.userId, patientId));
+        } else {
+          await db.insert(aiChats).values({
+            userId: patientId,
+            chats: updatedChats,
+            chatSummary: null,
+          });
+        }
+        console.log(`[ai_chats] Persisted ${updatedChats.length} messages for user ${patientId}`);
+
+        // 2. Generate updated rolling summary (awaited so the response can
+        // return it — frontend uses it directly, no racy re-fetch needed).
+        try {
+          const summaryPrompt = `Summarize the following clinical conversation in 2–3 sentences.
+Focus on the key health topics discussed, any concerns raised, and advice given.
+Be concise and factual. Do not include names or greetings.\n\n` +
+            updatedChats.map(c => `${c.created_by === 'user' ? 'Patient' : 'Hippo AI'}: ${c.chat_text}`).join('\n');
+
+          const summaryAgent = new Agent({
+            name: 'Chat Summarizer',
+            model: agentModel,
+            instructions: 'You are a concise medical summarizer. Reply ONLY with the summary — no preamble, no labels.',
+            tools: [],
+          });
+          const summaryResult = await run(summaryAgent, summaryPrompt);
+          if (summaryResult?.finalOutput?.trim()) {
+            chatSummary = summaryResult.finalOutput.trim();
+            await db
+              .update(aiChats)
+              .set({ chatSummary, updatedAt: new Date() })
+              .where(eq(aiChats.userId, patientId));
+            console.log(`[ai_chats] Summary updated for user ${patientId}`);
+          }
+        } catch (sumErr) {
+          console.error('[ai_chats Summary Generation Error]', sumErr.message);
+        }
+      } catch (persistErr) {
+        console.error('[ai_chats Persist Error]', persistErr);
+      }
+    }
 
     return res.json({
       message: {
         role: 'assistant',
-        content: agentResult.finalOutput || 'No output produced.',
+        content: aiResponseText,
       },
       agent: {
         name: agent.name,
         model: agentModel,
         status: 'completed',
       },
+      // Echo back persisted state so the frontend can render recent-10 +
+      // summary without a second round-trip (also fixes stale-summary races).
+      chats: updatedChats,
+      chatSummary,
     });
   } catch (err) {
     console.error('[OpenAI Agent SDK Error]', err);
@@ -547,3 +769,4 @@ ${patientContextStr}`;
 });
 
 export default router;
+
