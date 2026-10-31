@@ -1,14 +1,156 @@
-# 🦛 HippoHealth: Precision Clinical AI & Diagnostic Ecosystem
+<p align="center">
+  <img src="./frontend/public/logo.png" alt="HippoHealth Logo" width="180"/>
+</p>
 
-HippoHealth is a multi-platform digital health ecosystem bridging patient care with precision AI. The repo contains a **Next.js 16 Web Client**, a **bare React Native Mobile App** with Google Health Connect integration, an **Express.js 5 Main Backend** (REST + WebSocket), and a **FastAPI AI Diagnostic Service** running 6 deep-learning / machine-learning models.
+<h1 align="center">HippoHealth</h1>
 
-> **Note:** There is no `chatbot/` directory, no `start_all_backends.bat`, and no MedGemma / LibreChat servers in this snapshot. The backend retains a legacy proxy route `ALL /api/chatbot/* → http://127.0.0.1:8001`, but nothing listens on port 8001. Clinical chat is served by the Express backend itself (Groq `openai/gpt-oss-120b` + OpenCode Zen / DeepSeek + Deepgram).
+<p align="center">
+  An AI-powered digital health ecosystem combining clinical diagnostics, health monitoring, medical records, and doctor–patient collaboration.
+</p>
+
+<p align="center">
+  <a href="https://github.com/kushalkambar5/buildforbillions"><img src="https://img.shields.io/github/stars/kushalkambar5/buildforbillions?style=social" alt="GitHub stars"/></a>
+  <a href="https://github.com/kushalkambar5/buildforbillions/forks"><img src="https://img.shields.io/github/forks/kushalkambar5/buildforbillions?style=social" alt="GitHub forks"/></a>
+  <a href="https://github.com/kushalkambar5/buildforbillions/issues"><img src="https://img.shields.io/github/issues/kushalkambar5/buildforbillions" alt="GitHub issues"/></a>
+  <br/>
+  <img src="https://img.shields.io/badge/Node.js-22-339933?logo=nodedotjs&logoColor=white" alt="Node.js"/>
+  <img src="https://img.shields.io/badge/Next.js-16-black?logo=nextdotjs&logoColor=white" alt="Next.js"/>
+  <img src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black" alt="React"/>
+  <img src="https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white" alt="Python"/>
+  <img src="https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white" alt="FastAPI"/>
+  <img src="https://img.shields.io/badge/React_Native-0.86-61DAFB?logo=react&logoColor=black" alt="React Native"/>
+</p>
+
+HippoHealth is a multi-platform precision health system for patients, doctors, and clinical AI workflows. It combines a Next.js web app, a React Native mobile app with Google Health Connect, an Express.js REST + WebSocket backend, and a FastAPI service running six diagnostic ML models — backed by PostgreSQL, Cloudflare R2 storage, and LLM APIs for explanations, summaries, and care planning.
 
 ---
 
-## 🗺️ Project Architecture & Components
+## 📑 Table of Contents
 
-Multi-workspace codebase rooted at `E:\Codes\build_for_billions`:
+- [What is HippoHealth?](#-what-is-hippohealth)
+- [Demo](#-demo)
+- [Project Presentation](#-project-presentation)
+- [Key Features](#-key-features)
+- [Architecture](#️-architecture)
+- [AI Diagnostic Models](#-ai-diagnostic-models)
+- [Tech Stack](#-tech-stack)
+- [Getting Started](#-getting-started)
+- [Running the Project](#️-running-the-project)
+- [API Overview](#-api-overview)
+- [Project Structure](#-project-structure)
+- [Security & Privacy](#-security--privacy)
+- [Medical Disclaimer](#️-medical-disclaimer)
+- [Roadmap](#️-roadmap)
+- [Contributing](#-contributing)
+- [License](#-license)
+
+---
+
+## 🩺 What is HippoHealth?
+
+HippoHealth bridges everyday patient care with precision AI diagnostics in one connected ecosystem:
+
+- **Next.js web application** — patient and doctor dashboards, AI diagnostic workbench, anatomical visualizer, medical vault, tasks/diet plans, and real-time chat.
+- **React Native mobile application (bare CLI)** — Google Health Connect integration for wearable telemetry (steps, heart rate, SpO₂, sleep, calories, distance) with manual sync to the backend.
+- **Express.js backend** — REST API, WebSocket-based doctor–patient chat, auth, file uploads, and proxying to AI services.
+- **FastAPI AI model service** — six deep-learning / machine-learning models for bone fracture, brain tumor, ECG arrhythmia, heart disease risk, chest X-ray pathology, and skin disease.
+- **Data & AI layer** — PostgreSQL (via Drizzle ORM + `pg`), Cloudflare R2 (S3-compatible file storage), Groq (`openai/gpt-oss-120b`), OpenCode Zen (`deepseek-v4-flash-free`), and Deepgram (`nova-2`) for transcription.
+
+---
+
+## 🎥 Demo
+
+> 🚧 Demo video coming soon — this section will host the embedded YouTube walkthrough once published.
+
+<!--
+Replace the placeholder below with the YouTube embed once the video is published.
+
+Recommended format:
+
+[![HippoHealth Demo](https://img.youtube.com/vi/YOUTUBE_VIDEO_ID/maxresdefault.jpg)](https://www.youtube.com/watch?v=YOUTUBE_VIDEO_ID)
+-->
+
+---
+
+## 📊 Project Presentation
+
+[📑 View Project Presentation](https://docs.google.com/presentation/d/1ry9LYx-d2TbGWDbfAH_nmkB5Wz6R6i6a/edit?usp=sharing&ouid=105178577981616596829&rtpof=true&sd=true)
+
+---
+
+## ✨ Key Features
+
+### 🩺 AI Diagnostic Suite
+
+- Bone fracture detection
+- Brain tumor detection with bounding boxes
+- ECG arrhythmia classification (5-class)
+- Heart disease risk prediction
+- Chest X-ray pathology detection (multi-label probabilities)
+- Skin disease classification
+- AI-generated explanations, care suggestions, medicines, and affected-body-part mapping
+
+### 🧍 Anatomical Body Visualizer
+
+- 13 anatomical stages (skeleton, circulatory, urinary, digestive, gallbladder, liver, diaphragm, heart, lungs, brain, eyes, muscles, skin)
+- Interactive 2D visualization with organ selector, autoplay, glow, and tooltips
+- Medical-history mapping (scans + reports matched to body parts)
+- Report-a-problem flow linked to the selected anatomical part
+
+### 💬 AI & Doctor–Patient Chat
+
+- Hippo AI assistant with access to patient profile, metrics, tasks, reports, and scan history
+- Doctor–patient messaging with assignment-aware sidebars
+- WebSocket-based real-time communication (`WS /ws/chat`) with reconnect and dedupe
+
+### ❤️ Health Connect Integration
+
+- Wearable health data via `react-native-health-connect`
+- Steps, heart rate, SpO₂, sleep, calories, and distance synced to `health_metrics`
+- Web vault with telemetry cards, history table (`HEALTH_CONNECT` vs `MANUAL`), sample sync, and manual vitals logging
+
+### 📁 Medical Records
+
+- Medical scans with AI explanations and raw prediction details
+- Medical reports with AI summaries and extracted data
+- Unified timeline view grouped by month
+- Search and type filters
+- Conversation records with audio playback, transcription, summary, and medications
+
+### 👨‍⚕️ Doctor Dashboard
+
+- Patient directory with search and assignment status
+- Workspace tabs: profile, health metrics, scans, reports, tasks & diet, conversations, chat
+- Edit patient profiles, add metrics, run AI models, upload reports
+- Record consultations (audio → transcription → summary)
+
+### 🥗 AI Tasks & Diet Plans
+
+- AI-generated tasks (manual + goal-based: steps, calories, sleep)
+- AI-generated diet plans with nutritional targets and daily schedules
+- Doctor verification workflow (`AI_GENERATED` → `DOCTOR_VERIFIED` → `ACTIVE`)
+- Progress tracking and task history
+
+<details>
+<summary><strong>Implementation notes (where things live)</strong></summary>
+
+- Diagnostic workbench: `frontend/app/detect-disease` + `frontend/components/DiseaseDetector.tsx` → `POST /api/models/predict/<model>` → `POST /api/scans`.
+- Body visualizer: `frontend/app/visualize-body` + `frontend/components/BodyVisualizer.tsx`, layers in `frontend/public/human_body_parts/`, stage map in `backend/src/db/body_parts.json`.
+- Hippo chat: `frontend/app/chat-with-hippo` + `frontend/components/HippoChat.tsx` → `POST /api/chat`, history at `/api/chat/history`.
+- Doctor–patient chat: `frontend/app/chat` → `GET/POST /api/chat/doctor-patient` + `WS /ws/chat`.
+- Health metrics: `frontend/app/health-metrics` → `GET /api/health/metrics`; mobile sync in `app/App.tsx` → `POST /api/health/sync`.
+- Vault: `frontend/app/medical-history` → `GET /api/medical-history`.
+- Tasks & diet: `frontend/app/tasks-diet` → `GET /api/tasks/my`, `GET /api/diet/my`.
+- Conversations: `frontend/app/conversations` → `GET /api/conversations/my`.
+- Care team: `frontend/app/manage-doctors` → `GET /api/patient/doctors`.
+
+</details>
+
+---
+
+## 🏗️ Architecture
+
+Requests flow from the Next.js web client (and the React Native app) through the Express backend, which handles auth, persistence, uploads, chat, and LLM calls — and proxies diagnostic inference to the FastAPI AI service.
 
 ```mermaid
 graph TD
@@ -25,261 +167,255 @@ graph TD
     B -->|WS /ws/chat| L[Doctor-Patient Realtime Chat]
 ```
 
-| Component | Path | Port | Runtime |
+| Component | Technology | Port | Purpose |
 |---|---|---|---|
-| Web Client | [`frontend/`](./frontend) | 3000 | Next.js 16.2.12, React 19.2.4, Tailwind CSS 4, next-auth 4.24.15 |
-| Mobile App | [`app/`](./app) | — (device) | React Native 0.86.2 (bare CLI), React 19.2.3, `react-native-health-connect` 3.5.3 |
-| Main Backend | [`backend/`](./backend) | 5000 | Express 5.2.1 ESM, `ws` 8.22.0, Drizzle ORM 0.45.2, `pg` 8.22.0 |
-| AI Models | [`ai_models/`](./ai_models) | 8000 | FastAPI + uvicorn, torch, ultralytics YOLO, XGBoost, TorchXRayVision |
+| Web Client | Next.js 16, React 19 | 3000 | Patient/doctor UI, auth, API proxy |
+| Main Backend | Express 5, `ws`, Drizzle ORM | 5000 | REST + WebSocket API, uploads, LLM orchestration |
+| AI Models | FastAPI, PyTorch, YOLO, XGBoost | 8000 | Diagnostic inference endpoints |
+| Mobile App | React Native CLI, Health Connect | device | Wearable data capture + manual sync |
+| Database | PostgreSQL | — | Users, scans, reports, metrics, chats, tasks |
+| Storage | Cloudflare R2 (S3 API) | — | Avatars, scan files, reports, audio |
+| Realtime | WebSockets (`/ws/chat`) | 5000 | Doctor–patient messaging |
 
-### 1. [`frontend/`](./frontend) — Next.js Web Client (App Router, no `pages/` or `src/`)
-
-* **Auth:** NextAuth Credentials provider → `POST ${BACKEND_URL}/api/auth/login`. Session extended with `{id, role, onboardingComplete}` (`types/next-auth.d.ts`). Routes guarded by `useSession` / `getServerSession`. Signup (`/signup`) validates fullName/email/password/role → `POST /api/register` → auto `signIn`. Onboarding (`/onboarding`) is a 3-step wizard (core profile + live BMI/age validation, emergency phone + avatar upload, role-specific doctor assignment / license + specialization) → `POST /api/onboarding (FormData)`.
-* **API proxy:** `app/api/[...path]/route.ts` forwards `GET/POST/PUT/DELETE` to `BACKEND_URL (default http://localhost:5000)/api/<path>`, injects `x-user-id / x-user-role`, preserves `multipart/form-data` via raw stream + `duplex:half`.
-* **Shared libs:** `lib/db.ts` (drizzle + `pg.Pool`), `lib/r2.ts` (`S3Client region:auto`, `uploadToR2`, default bucket `onbillo`), `lib/schema.ts` (full Drizzle mirror: users, doctor_profiles, doctor_patients, medical_reports, health_metrics, disease_scans, diet_plans, ai_suggestions, body_map_conditions, chat_contexts, doctor_patient_chats, conversations, ai_chats).
-* **Routes (all in `app/`):**
-  * `/` — marketing landing (`HeaderNav + HeroSection + MarqueeTicker + CoreServicesGrid + InteractiveFeatureShowcase + DiagnosticSuiteDark + Footer`)
-  * `/dashboard` — role-split Patient hub / Doctor EHR entry
-  * `/visualize-body` — 2D anatomy `<BodyVisualizer/>`
-  * `/detect-disease` — `<DiseaseDetector/>` workbench
-  * `/chat-with-hippo` — `<HippoChat fullHeight/>`
-  * `/chat` — secure Doctor↔Patient chat (`?doctorId=` / `?patientId=`, WebSocket)
-  * `/health-metrics` — wearable telemetry vault
-  * `/medical-history` — Medical Vault (scans + reports + timeline)
-  * `/tasks-diet` — tasks + diet plans (patient-only nav)
-  * `/manage-doctors` — care-team directory (PATIENT-only)
-  * `/conversations` — recorded consultation vault (PATIENT-only)
-  * `/login`, `/signup`, `/onboarding`
-  * `/hipaa-compliance`, `/privacy-policy`, `/terms-of-clinical-use` (public legal pages)
-  * `/api/auth/[...nextauth]`, `/api/[...path]`
-* **UI system:** cream `#F6F4EF` / ink `#1C1B18` / gold `#8C6B1F`, dark-mode vars in `globals.css`, `Material Symbols Outlined`, `HeaderNav` with grouped dropdowns, `ClickSpark`, `ThemeInitializer`, `SpecularButton`, Three.js (`three`, `@react-three/fiber/drei/rapier`), `motion`, `gsap`, `lucide-react`, `@phosphor-icons/react`.
-
-### 2. [`app/`](./app) — React Native Mobile App (bare CLI, NOT Expo)
-
-* **2-file monolith:** `App.tsx` (1079 lines, all UI + logic) + `LoginScreen.tsx` (352 lines). No `screens/`, `components/`, or navigator — single `ScrollView` with auth gate.
-* **Health Connect:** `react-native-health-connect` (`initialize`, `getSdkStatus`, `requestPermission`, `readRecords`, `insertRecords`). `AndroidManifest.xml` declares ~32 `android.permission.health.*` + `PermissionsRationaleActivity` / `ViewPermissionUsageActivity` (Android 14+).
-* **Reads 15 types** (`recordTypesToRead`): Steps, Distance, ActiveCaloriesBurned, TotalCaloriesBurned, HeartRate, OxygenSaturation, SleepSession, Weight, Height, Hydration, BloodGlucose, BloodPressure, Nutrition, MenstruationFlow, OvulationTest. `PERMISSIONS` requests 21 read/write entries.
-* **Writes 6 types via UI:** HeartRate, SpO2, Steps, SleepSession, ActiveCaloriesBurned, Distance.
-* **Sync engine (manual, not periodic):** `Fetch All Health Data` (`readRecords` 2000-01-01 → now, binary-split retry on bad intervals) → `Sync to Database` → `POST ${API_BASE}/api/health/sync {healthData}` with `Bearer <JWT>`. Backend aggregates only 6 fields (steps, calories, distance, HR avg/min/max, SpO2, sleep minutes) into `health_metrics` with `source=HEALTH_CONNECT`. `TotalCaloriesBurned, Weight, Height, Hydration, Nutrition, Glucose, BP, Menstruation, Ovulation` are read on-device but dropped in aggregation.
-* **Auth:** `LoginScreen` → `POST /api/auth/login` → persists `auth_token` + `auth_user` in `AsyncStorage`. `API_BASE` is hardcoded in both `App.tsx:25` and `LoginScreen.tsx:17` (ngrok URL) and ignores `app/.env.example` (`API_BASE=http://10.0.2.2:5000`).
-
-### 3. [`backend/`](./backend) — Express API Server (port `5000`, REST + WS)
-
-* **Boot:** `http.createServer(app)` + `initChatWebSocket(server)`. `initDb()` tries `ensureDatabaseExists()` (fallback `postgres`/`template1`, `CREATE DATABASE`) → `migrate()` → `seedInitialDoctors()` (3 verified doctors: Cardiology, General Surgery, Occupational Medicine). Server listens even on DB fail.
-* **Auth flavors:** `authenticateToken` (Bearer JWT, `health/sync`, `upload/profile-image`), `authenticateProxyUser` (`x-user-id`/`x-user-role` from Next.js proxy, most `/api/*`), `auth()` (`x-user-id` only, tasks/diet), `authenticateUser` (proxy-header preferred, JWT fallback, health), and no-auth `resolveAiChatUserId` (query/body/header) for Hippo chat.
-* **Database:** Drizzle + `pg.Pool`, 15 tables (`users`, `doctor_profiles`, `doctor_patients`, `medical_reports`, `health_metrics`, `disease_scans`, `diet_plans`, `tasks`, `task_history`, `ai_suggestions` [defined, unused], `body_map_conditions`, `chat_contexts` [unused], `doctor_patient_chats`, `conversations`, `ai_chats`), enums for role, gender, blood_group, scan_type (`BONE_FRACTURE|BRAIN_TUMOR|ECG|HEART|SKIN|CHEST`), scan_status, report_type, health_metric_source, diet_plan_status, task_type, goal_metric, etc. Migrations in `drizzle/0000–0002`. `body_parts.json` maps stages 1–13.
-* **File uploads (multer memory + R2 S3 API):** `uploadToR2(buffer, name, mime, folder)` → `${R2_PUBLIC_URL}/${key}` (default bucket `onbillo`). Endpoints: `POST /api/upload/profile-image` (10 MB, `image/*`), `POST /api/upload/`, `POST /api/onboarding` (`profile-images`), `POST /api/scans` (20 MB → `disease-scans`), `POST /api/medical-reports` (→ `medical-reports`), `POST /api/user/profile-image`, `POST /api/conversations/record` (→ `conversation-audio`).
-* **AI integrations:**
-  * Groq via OpenAI-compatible (`OPENAI_BASE_URL=https://api.groq.com/openai/v1`, `OPENAI_MODEL=openai/gpt-oss-120b`) + `@openai/agents` SDK — Hippo chat (6 DB tools) + Task Planner.
-  * OpenCode Zen (`POST https://opencode.ai/zen/v1/chat/completions`, `OPENCODE_ZEN_MODEL=deepseek-v4-flash-free`) — scan explanations (`ai_explanation, ai_suggestions[], medicines[], affected_parts[1-13]`) and report summaries, diet generation.
-  * Deepgram (`nova-2`, `smart_format`) + Groq chat completions — conversation transcription → `{summary, medications[]}`.
-* **Proxies:** `ALL /api/models/* → MODELS_URL||http://127.0.0.1:8000` (strips `/models` prefix, streams multipart/JSON). `ALL /api/chatbot/* → NEXT_PUBLIC_CHATBOT_URL||http://127.0.0.1:8001` (legacy, no server here).
-
-### 4. [`ai_models/`](./ai_models) — FastAPI AI Models (port `8000`)
-
-FastAPI `AI Digital Twin Medical Models API v1.0`, CORS `*`, Swagger at `/docs`. Run via `uvicorn app:app --port 8000 --reload` or `python app.py`.
-
-| # | Model | Type | File | Endpoint |
-|---|---|---|---|---|
-| 1 | Bone Fracture Detection | YOLO classification | `models/best_fracture_classifier.pt` (~3.2 MB) | `POST /predict/bone` (multipart `file` → `{diagnosis, confidence 0-100}`) |
-| 2 | Brain Tumor Detection | YOLO object detection (`conf=0.25`) | `models/best_brain_tumor_model.pt` (~5.6 MB) | `POST /predict/brain` (multipart `file` → `{detections[{class, confidence, bbox}], tumor_found}`) |
-| 3 | ECG Arrhythmia (5-class) | Custom 1D-CNN (`Conv1d 1→32→64, Linear 64*43→128→5`) | `models/best_ecg_model.pth` (~1.5 MB) | `POST /predict/ecg` (JSON `{signal: 187 floats}` → `{diagnosis, class_id, confidence}`) |
-| 4 | Heart Disease Risk | XGBoost | `models/heart_xgb_model.json` | `POST /predict/heart` (JSON 13 fields: age, sex, cp, trestbps, chol, fbs, restecg, thalach, exang, oldpeak, slope, ca, thal → `{risk_prediction 0/1, disease_probability, diagnosis}`) |
-| 5 | Chest X-Ray Pathology (18-label) | DenseNet121 TorchXRayVision (`densenet121-res224-all`, auto-download) | — (downloaded) | `POST /predict/chest` (multipart `file` → `{pathology_probabilities{...: 0-100}}`) |
-| 6 | Skin Disease (Benign_tumors, Eczema, Psoriasis, Seborrh_Keratoses, SkinCancer) | YOLO classification | `models/best.pt` (~3.2 MB) | `POST /predict/skin` (multipart `file` → `{diagnosis, confidence}`) |
-
-Plus `GET /` health check. `test_api.py` exercises all 6 (note: it points at `http://localhost:7860` and hardcoded local training paths).
+> ⚠️ **Legacy route note:** the backend retains a proxy for `ALL /api/chatbot/* → http://127.0.0.1:8001`, but no service listens on port 8001 in this repository. Clinical chat is served by the Express backend itself (Groq + OpenCode Zen + Deepgram).
 
 ---
 
-## 🚀 Core Features (actually implemented)
+## 🤖 AI Diagnostic Models
 
-### 🩺 Interactive AI Diagnostic Suite (`/detect-disease` → `DiseaseDetector.tsx`)
+FastAPI service (`ai_models/`, Swagger at `GET /docs` when running). Health check at `GET /`.
 
-* Sidebar picker for all 6 models with per-model inputs: image drag-drop + preview (bone/chest/brain/skin), synthetic ECG presets (normal/PVC/supraventricular, 187-pt + sparkline SVG + raw textarea validation), 13-field heart form (sliders/selects + Alpha Low / Beta High presets).
-* `POST /api/models/predict/<model>` → `POST /api/scans {scanType, predictionResult, modelInputMetadata, file}` → merged OpenCode Zen explanation.
-* Results: confidence bars, tumor YES/NO + rescaled bounding boxes (brain), sorted pathology list (chest), risk + probability (heart), AI insights (explanation, affected parts via `STAGE_NAME_MAP 1-13`, meds, care instructions).
+| Model | Technology | Input | Output |
+|---|---|---|---|
+| Bone Fracture | YOLO classification (`models/best_fracture_classifier.pt`, ~3.2 MB) | X-ray image (`multipart file`) | Diagnosis + confidence (0–100) |
+| Brain Tumor | YOLO object detection, `conf=0.25` (`models/best_brain_tumor_model.pt`, ~5.6 MB) | Brain scan (`multipart file`) | Detections with class, confidence, bbox + `tumor_found` |
+| ECG Arrhythmia | Custom 1D-CNN (`Conv1d 1→32→64`, `Linear 64*43→128→5`; `models/best_ecg_model.pth`, ~1.5 MB) | JSON `{signal: 187 floats}` | 5-class diagnosis + `class_id` + confidence |
+| Heart Disease | XGBoost (`models/heart_xgb_model.json`) | JSON with 13 clinical fields (age, sex, cp, trestbps, chol, fbs, restecg, thalach, exang, oldpeak, slope, ca, thal) | Risk prediction (0/1), disease probability, diagnosis |
+| Chest X-ray | DenseNet121 via TorchXRayVision (`densenet121-res224-all`, auto-downloaded) | X-ray image (`multipart file`) | Pathology probabilities (0–100 per label) |
+| Skin Disease | YOLO classification (`models/best.pt`, ~3.2 MB; classes: Benign tumors, Eczema, Psoriasis, Seborrh Keratoses, SkinCancer) | Skin image (`multipart file`) | Diagnosis + confidence |
 
-### 🦴 2D Anatomical Body Visualizer (`/visualize-body` → `BodyVisualizer.tsx`)
+Endpoints: `POST /predict/bone`, `POST /predict/brain`, `POST /predict/ecg`, `POST /predict/heart`, `POST /predict/chest`, `POST /predict/skin`.
 
-* **13 detailed stages:** 1 Skeleton, 2 Circulatory, 3 Urinary, 4 Digestive, 5 Gallbladder, 6 Liver, 7 Diaphragm, 8 Heart, 9 Lungs, 10 Brain, 11 Eyes, 12 Muscles, 13 Skin (+ 5 keyframe groups: Bone, Circulatory, Internal Organs, Muscular, Full Body). PNG layers in `public/human_body_parts/`.
-* Viewer: quick-select pills, glow, organ selector (9 organs on stages 3–11), stacked opacity/scale transitions, pulse/hover tooltips, click-to-filter, 1.8 s autoplay, prev/next.
-* `PartTimelinePanel`: `GET /api/medical-history` matched by `affectedParts` + keyword fallback (heart→cardiac/ecg, lungs→pulmonary, etc.), scan (purple) + report (sky) cards. `ReportNewProblemForm`: `POST /api/medical-reports {selectedPartId/Name/Stage, fromVisualizeBody:true}` with image/PDF preview.
+<details>
+<summary><strong>Model testing note</strong></summary>
 
-### 💬 Dual Chat System
+`ai_models/test_api.py` exercises all six models, but it currently points at `http://localhost:7860` and references hardcoded local training paths. Update the base URL to `http://localhost:8000` and adjust paths before running it against this service.
 
-* **Hippo AI (`/chat-with-hippo` → `HippoChat.tsx`):** `POST /api/chat {message, history, patientId}`, `GET/DELETE /api/chat/history`, `GET /api/chat/status`. Groq agent with 6 DB tools (profile, metrics, tasks, reports, history, detected diseases), last-10 `ai_chats` + rolling `chat_summary`, markdown renderer, 4 quick prompts, thinking indicator, timestamps.
-* **Doctor–Patient (`/chat`):** sidebar (doctor: `GET /api/doctor/patients` filtered by assignment; patient: `GET /api/patient/doctors`), `GET/POST /api/chat/doctor-patient`, realtime `WS /ws/chat` (`join` + `new_message` broadcast, 3 s reconnect, dedupe, date separators, `NO_DOCTOR_ASSIGNED → /manage-doctors` CTA).
-
-### 📊 Health Connect Smartwatch Sync (`/health-metrics` + mobile `app/`)
-
-* Web: `GET /api/health/metrics`. 6 cards (Heart range, SpO2, Steps + km, Sleep hrs + mins, Calories, Distance), `Database Telemetry History` table with `HEALTH_CONNECT` vs `MANUAL` badges, `Sync Sample Telemetry` + `Log Vitals Manually` modal (`POST /api/health/metrics {source:MANUAL}`).
-* Mobile: manual `Fetch All Health Data` + `Sync to Database` buttons, 6 writable vitals, console-log pane. No background scheduler.
-
-### 📁 Medical History Vault (`/medical-history`)
-
-* `GET /api/medical-history → {scans[], reports[]}`. Stats bar, `scans|reports|timeline` tabs + search + type filters.
-* `ScanCard`: per-type icon/color/status, diagnosis, expandable `aiExplanation, aiSuggestions, medicines, affectedParts, PredictionResultDetails` + raw JSON toggle.
-* `ReportCard`: `LAB|IMAGING|PRESCRIPTION|DISCHARGE|OTHER`, AI summary, meds, `extractedData`, R2 `View Report File`.
-* `TimelineView`: merged desc sort, `Month Year` groups, gradient line, affected-part + med tags.
-
-### 📋 Patient & Doctor Dashboards (`/dashboard`)
-
-* **Patient:** welcome hero with age/blood/height/weight/BMI pills, Quick Actions (`visualize-body, detect-disease, chat-with-hippo, health-metrics, tasks-diet, chat`), Vitals Grid (Live Sync vs baselines), Recent Scans (4 cards → `/medical-history`), Care Team rail, Clinical Record Snapshot.
-* **Doctor EHR (`PatientsDashboard.tsx`):** directory search + assignment dots, workspace tabs `profile | metrics | scans | reports | tasks-diet | conversations | chat`. Can edit patient profile (`POST /api/doctor/update-patient-profile`), add metrics, run model + save scan (`POST /api/models/predict/<model>` → `POST /api/scans`), upload reports (13-stage map), manage tasks/diet, record conversations (`MediaRecorder audio/webm` → `POST /api/conversations/record`), deep-link chat.
-
-### ✅ Tasks & AI Diet Plans (`/tasks-diet`)
-
-* `GET /api/tasks/my + /api/diet/my`, `tasks|diet` toggle. Manual tasks checkbox (`POST /api/tasks/:id/done|undone`, 20-day history), goal tasks (`daily_steps|calories_burn|min_sleep`) with progress + `POST /api/tasks/sync-history/:userId`. Diet: status (`AI_GENERATED|DOCTOR_VERIFIED|ACTIVE`), goals, nutritional targets, daily schedule, `aiRationale`, `doctorNotes`. Backend: `POST /api/tasks/generate-ai/:patientId` (Groq agent), `POST /api/diet/generate/:patientId` + `PUT /api/diet/update-with-ai/:dietId` (OpenCode Zen).
-
-### 🎙️ Conversations (`/conversations`)
-
-* `GET /api/conversations/my → {conversationId, transcription, summary, medication[], audio, doctorName/...}`. Stats, search + doctor filter, `<audio>` (R2) + Direct Audio link, AI Summary, med pills, Deepgram transcription `<details>` + copy.
-
-### 👨‍⚕️ Care Team (`/manage-doctors`)
-
-* `GET /api/patient/doctors`, My Care Team (`POST /api/patient/doctors/toggle-active`) + Add New (`POST /api/patient/doctors/add`), search by name/specialty/hospital.
-
-### 🔐 Auth, Onboarding & Legal
-
-* JWT (30 d) + bcrypt, NextAuth JWT strategy, proxy-header trust, seeded demo doctors, avatar R2 uploads (`POST /api/user/profile-image`, 10 MB), onboarding consent, public `/hipaa-compliance`, `/privacy-policy`, `/terms-of-clinical-use`.
+</details>
 
 ---
 
-## 🛠️ Tech Stack
+## 🧰 Tech Stack
 
-* **Frontend:** Next.js 16.2.12, React 19.2.4, TypeScript 5, Tailwind CSS 4, next-auth 4.24.15, three 0.185.1 + `@react-three/fiber/drei/rapier`, `motion`, `gsap`, `lucide-react`, `@phosphor-icons/react`, `drizzle-orm` + `pg`, `bcryptjs`, `@aws-sdk/client-s3`.
-* **Backend:** Express 5.2.1, `ws` 8.22.0, `drizzle-orm` 0.45.2 + `drizzle-kit` 0.31.10 + `pg` 8.22.0, `jsonwebtoken`, `bcryptjs`, `multer` 2.2.0, `@aws-sdk/client-s3`, `@openai/agents` 0.18.0, `zod`, `dotenv`, `cors`.
-* **AI service:** FastAPI, uvicorn, `ultralytics`, `torch` 2.0+, `torchvision`, `xgboost`, `pandas`, `numpy`, `torchxrayvision`, `scikit-image`, `scikit-learn`, `python-dotenv`, `python-multipart`, `pydantic`.
-* **Mobile:** React Native 0.86.2, React 19.2.3, `react-native-health-connect` 3.5.3, `@react-native-async-storage/async-storage`, `react-native-safe-area-context`, Node ≥ 22.11.
-* **Infra/AI APIs:** PostgreSQL, Cloudflare R2 (S3-compatible), Groq OpenAI-compatible (`openai/gpt-oss-120b`), OpenCode Zen (`deepseek-v4-flash-free`), Deepgram `nova-2`.
+### Frontend
+
+- Next.js 16.2.12, React 19.2.4, TypeScript 5, Tailwind CSS 4
+- `next-auth` 4.24.15 (Credentials provider)
+- Three.js + `@react-three/fiber` / `drei` / `rapier`, `motion`, `gsap`, `lucide-react`, `@phosphor-icons/react`
+
+### Backend
+
+- Node.js, Express 5.2.1 (ESM)
+- WebSockets (`ws` 8.22.0)
+- Drizzle ORM 0.45.2 + `drizzle-kit` + `pg`
+- `jsonwebtoken`, `bcryptjs`, `multer`, `zod`, `cors`, `dotenv`
+
+### AI / ML
+
+- Python, FastAPI, Uvicorn, Pydantic
+- PyTorch, TorchVision, Ultralytics YOLO, XGBoost, TorchXRayVision
+- Pandas, NumPy, scikit-image, scikit-learn
+
+### Mobile
+
+- React Native 0.86.2 (bare CLI, not Expo), React 19.2.3
+- `react-native-health-connect` 3.5.3, AsyncStorage, Safe Area Context
+
+### Data & Storage
+
+- PostgreSQL (`hippohealth` database, 15 tables, Drizzle migrations)
+- Cloudflare R2 (S3-compatible; default bucket `onbillo`)
+
+### AI APIs
+
+- Groq OpenAI-compatible (`openai/gpt-oss-120b`) via `@openai/agents` SDK
+- OpenCode Zen (`deepseek-v4-flash-free`) for scan/report/diet explanations
+- Deepgram (`nova-2`) for conversation transcription
 
 ---
 
-## 🛠️ Installation & Setup
+## 🚀 Getting Started
 
 ### Prerequisites
 
-* **Node.js** (v22.11+ for mobile; v18+ minimum for web/backend)
-* **Python 3.10+** (repo `ai_models/.venv` uses 3.14)
-* **PostgreSQL** database
-* **Cloudflare R2 bucket** (or S3-compatible)
-* **Groq API key** (`GROQ_API_KEY`) — Hippo chat + task planner
-* **OpenCode Zen API key** — scan/report/diet summaries
-* **Deepgram API token** — hardcoded in `backend/src/routes/conversations.js` for `/api/conversations/record` (replace before production use)
-* Android Studio / Xcode for the mobile app
+- **Node.js** — v18+ minimum for web/backend; v22.11+ required for the mobile app
+- **Python 3.10+** for the AI service
+- **PostgreSQL** database
+- **Cloudflare R2 bucket** (or any S3-compatible storage)
+- **Groq API key** (`GROQ_API_KEY`) — Hippo chat + task planner
+- **OpenCode Zen API key** (`OPENCODE_ZEN_KEY`) — scan/report/diet summaries
+- **Deepgram API token** — conversation transcription
+- Android Studio / Xcode for the mobile app
 
-### Environment Configuration
+### 1. Clone the repository
 
-1. **Backend** ([`backend/.env.example`](./backend/.env.example) → `backend/.env`):
+```bash
+git clone https://github.com/kushalkambar5/buildforbillions.git
+cd buildforbillions
+```
 
-   ```env
-   PORT=5000
-   DATABASE_URL=postgresql://user:password@localhost:5432/hippohealth
-   JWT_SECRET=your_jwt_secret_key_here
-   GROQ_API_KEY=your_groq_api_key_here
-   OPENAI_API_KEY=your_openai_api_key_here
-   OPENAI_BASE_URL=https://api.groq.com/openai/v1
-   OPENAI_MODEL=openai/gpt-oss-120b
-   R2_BUCKET=onbillo
-   R2_PUBLIC_URL=https://pub-yourdomain.r2.dev
-   R2_ENDPOINT=https://<account_id>.r2.cloudflarestorage.com
-   R2_ACCESS_KEY_ID=your_r2_access_key_id
-   R2_SECRET_ACCESS_KEY=your_r2_secret_access_key
-   R2_TOKEN_VALUE=your_r2_token_value
-   OPENCODE_ZEN_KEY=your_opencode_zen_api_key
-   OPENCODE_ZEN_MODEL=deepseek-v4-flash-free
-   ```
+### 2. Configure environment variables
 
-2. **Frontend** ([`frontend/.env.example`](./frontend/.env.example) → `frontend/.env`):
+Copy each example file and fill in your own values. Never commit real secrets.
 
-   ```env
-   NEXTAUTH_URL=http://localhost:3000
-   NEXTAUTH_SECRET=your_nextauth_secret
-   BACKEND_URL=http://localhost:5000
-   NEXT_PUBLIC_API_URL=http://localhost:5000
-   DATABASE_URL=postgresql://user:password@localhost:5432/hippohealth
-   # R2_* (R2_BUCKET, R2_PUBLIC_URL, R2_ENDPOINT, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY + NEXT_PUBLIC_R2_PUBLIC_URL)
-   ```
+**Backend** (`backend/.env.example` → `backend/.env`):
 
-3. **AI models** ([`ai_models/.env.example`](./ai_models/.env.example)):
+```env
+PORT=5000
+DATABASE_URL=postgresql://user:password@localhost:5432/hippohealth
+JWT_SECRET=your_jwt_secret_key_here
+GROQ_API_KEY=your_groq_api_key_here
+OPENAI_API_KEY=your_openai_api_key_here
+OPENAI_BASE_URL=https://api.groq.com/openai/v1
+OPENAI_MODEL=openai/gpt-oss-120b
+R2_BUCKET=onbillo
+R2_PUBLIC_URL=https://pub-yourdomain.r2.dev
+R2_ENDPOINT=https://<account_id>.r2.cloudflarestorage.com
+R2_ACCESS_KEY_ID=your_r2_access_key_id
+R2_SECRET_ACCESS_KEY=your_r2_secret_access_key
+R2_TOKEN_VALUE=your_r2_token_value
+OPENCODE_ZEN_KEY=your_opencode_zen_api_key
+OPENCODE_ZEN_MODEL=deepseek-v4-flash-free
+```
 
-   ```env
-   HOST=0.0.0.0
-   PORT=8000
-   ```
+**Frontend** (`frontend/.env.example` → `frontend/.env`):
 
-4. **Mobile app** ([`app/.env.example`](./app/.env.example)):
-   ```env
-   API_BASE=http://10.0.2.2:5000
-   ```
-   > Current code ignores this file — `API_BASE` is hardcoded in `app/App.tsx:25` and `app/LoginScreen.tsx:17`. Update those constants to your backend URL (LAN IP / ngrok tunnel for devices).
+```env
+NEXTAUTH_URL=http://localhost:3000
+NEXTAUTH_SECRET=your_nextauth_secret_key_here
+BACKEND_URL=http://localhost:5000
+NEXT_PUBLIC_API_URL=http://localhost:5000
+DATABASE_URL=postgresql://user:password@localhost:5432/hippohealth
+R2_ENDPOINT=https://<account_id>.r2.cloudflarestorage.com
+R2_ACCESS_KEY_ID=your_r2_access_key_id
+R2_SECRET_ACCESS_KEY=your_r2_secret_access_key
+R2_BUCKET=hippohealth-bucket
+R2_PUBLIC_URL=https://pub-yourdomain.r2.dev
+R2_TOKEN_VALUE=your_r2_token_value
+NEXT_PUBLIC_R2_PUBLIC_URL=https://pub-yourdomain.r2.dev
+```
 
----
+**AI service** (`ai_models/.env.example`):
 
-## 🏃 Running the Application
+```env
+HOST=0.0.0.0
+PORT=8000
+```
 
-No `start_all_backends.bat` exists — run each service manually in its own terminal:
+**Mobile app** (`app/.env.example`):
 
-* **Main Express Backend:**
+```env
+API_BASE=http://10.0.2.2:5000
+```
 
-  ```bash
-  cd backend
-  npm install
-  npm run dev
-  # optional DB helpers: npm run db:generate / npm run db:push / npm run db:studio
-  ```
+> ⚠️ **Mobile config warning:** the app currently ignores `app/.env.example` — `API_BASE` is hardcoded in `app/App.tsx` and `app/LoginScreen.tsx`. Update those constants to your backend URL (LAN IP or tunnel URL for physical devices).
 
-* **FastAPI AI Models:**
-
-  ```bash
-  cd ai_models
-  python -m venv venv
-  venv\Scripts\activate
-  pip install -r requirements.txt
-  python app.py
-  # or: uvicorn app:app --port 8000 --reload
-  # docs: http://localhost:8000/docs
-  ```
-
-* **Next.js Frontend:**
-
-  ```bash
-  cd frontend
-  npm install
-  npm run dev
-  ```
-
-  Open [http://localhost:3000](http://localhost:3000).
-
-* **Mobile App (React Native CLI):**
-
-  ```bash
-  cd app
-  npm install
-  npm start
-  npm run android # or npm run ios
-  ```
+> ⚠️ **Secrets warning:** never commit populated `.env` files. Rotate any credentials that were ever committed or shared.
 
 ---
 
-## 🔌 Key API Reference (backend `:5000`)
+## ▶️ Running the Project
 
-* Auth: `POST /api/auth/login`, `POST /api/register`, `GET /api/doctors`, `POST /api/onboarding`
-* Health: `GET/POST /api/health/metrics`, `POST /api/health/sync`
-* Uploads: `POST /api/upload/`, `POST /api/upload/profile-image`, `POST /api/user/profile-image`
-* Scans/Reports: `POST /api/scans`, `POST /api/medical-reports`, `GET /api/medical-history`, `GET /api/user/profile`
-* Doctor/Patient: `GET /api/doctor/patients`, `POST /api/doctor/update-patient-profile`, `POST /api/doctor/add-patient-metric`, `POST /api/doctor/assign`, `GET /api/patient/doctors`, `POST /api/patient/doctors/add`, `POST /api/patient/doctors/toggle-active`
-* Tasks/Diet: `POST /api/tasks/generate-ai/:patientId`, `POST/PUT/DELETE /api/tasks/...`, `GET /api/tasks/my|patient/:id`, `POST /api/tasks/:id/done|undone`, `GET /api/tasks/:id/history`, `POST /api/diet/generate/:patientId`, `PUT /api/diet/update-with-ai/:dietId`, `POST/PUT/DELETE /api/diet/...`, `GET /api/diet/my|patient/:id|:dietId`
-* Chat: `POST/GET/DELETE /api/chat[/history]`, `GET /api/chat/status`, `GET/POST /api/chat/doctor-patient`, `WS /ws/chat`
-* Conversations: `POST /api/conversations/record`, `GET /api/conversations/my|patient/:patientId|:conversationId`
-* Proxies: `ALL /api/models/*` (→ `:8000`), `ALL /api/chatbot/*` (→ `:8001`, legacy/unused)
+There is no single start script — run each service in its own terminal.
 
-AI service (`:8000`): `GET /`, `POST /predict/bone|brain|ecg|heart|chest|skin`.
+| Service | URL |
+|---|---|
+| Frontend | http://localhost:3000 |
+| Backend | http://localhost:5000 |
+| AI service docs | http://localhost:8000/docs |
+
+**Backend (Express, port 5000):**
+
+```bash
+cd backend
+npm install
+npm run dev
+# optional DB helpers:
+# npm run db:generate
+# npm run db:push
+# npm run db:studio
+```
+
+On boot the backend attempts to ensure/create the database, run migrations, and seed three verified demo doctors (Cardiology, General Surgery, Occupational Medicine). The server still listens even if the DB connection fails — check logs if data endpoints error.
+
+**AI service (FastAPI, port 8000):**
+
+```bash
+cd ai_models
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
+python app.py
+# or: uvicorn app:app --port 8000 --reload
+```
+
+**Frontend (Next.js, port 3000):**
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Open http://localhost:3000.
+
+**Mobile app (React Native CLI):**
+
+```bash
+cd app
+npm install
+npm start
+npm run android # or: npm run ios
+```
 
 ---
 
-## 🗄️ Project Structure
+## 🔌 API Overview
+
+Backend base URL: `http://localhost:5000`. The Next.js route `app/api/[...path]/route.ts` proxies `/api/*` to the backend and injects `x-user-id` / `x-user-role`.
+
+Categories: **Authentication · Health · Uploads · Scans & Reports · Doctor / Patient · Tasks & Diet · Chat · Conversations · AI Service · Proxies**
+
+<details>
+<summary><strong>View API endpoints</strong></summary>
+
+- **Auth:** `POST /api/auth/login`, `POST /api/register`, `GET /api/doctors`, `POST /api/onboarding`
+- **Health:** `GET /api/health/metrics`, `POST /api/health/metrics`, `POST /api/health/sync`
+- **Uploads:** `POST /api/upload/`, `POST /api/upload/profile-image`, `POST /api/user/profile-image`
+- **Scans / Reports:** `POST /api/scans`, `POST /api/medical-reports`, `GET /api/medical-history`, `GET /api/user/profile`
+- **Doctor / Patient:** `GET /api/doctor/patients`, `POST /api/doctor/update-patient-profile`, `POST /api/doctor/add-patient-metric`, `POST /api/doctor/assign`, `GET /api/patient/doctors`, `POST /api/patient/doctors/add`, `POST /api/patient/doctors/toggle-active`
+- **Tasks / Diet:** `POST /api/tasks/generate-ai/:patientId`, `POST / PUT / DELETE /api/tasks/...`, `GET /api/tasks/my`, `GET /api/tasks/patient/:id`, `POST /api/tasks/:id/done`, `POST /api/tasks/:id/undone`, `GET /api/tasks/:id/history`, `POST /api/diet/generate/:patientId`, `PUT /api/diet/update-with-ai/:dietId`, `POST / PUT / DELETE /api/diet/...`, `GET /api/diet/my`, `GET /api/diet/patient/:id`, `GET /api/diet/:dietId`
+- **Chat:** `POST /api/chat`, `GET /api/chat/history`, `DELETE /api/chat/history`, `GET /api/chat/status`, `GET /api/chat/doctor-patient`, `POST /api/chat/doctor-patient`, `WS /ws/chat`
+- **Conversations:** `POST /api/conversations/record`, `GET /api/conversations/my`, `GET /api/conversations/patient/:patientId`, `GET /api/conversations/:conversationId`
+- **AI service (`:8000`):** `GET /`, `POST /predict/bone`, `POST /predict/brain`, `POST /predict/ecg`, `POST /predict/heart`, `POST /predict/chest`, `POST /predict/skin`
+- **Proxies:** `ALL /api/models/*` → `MODELS_URL` (default `http://127.0.0.1:8000`); `ALL /api/chatbot/*` → legacy `:8001` (unused, no server in this repo)
+
+</details>
+
+---
+
+## 📁 Project Structure
+
+```text
+hippohealth/
+├── frontend/      # Next.js web application
+├── backend/       # Express API + WebSocket server
+├── ai_models/     # FastAPI ML inference service
+└── app/           # React Native mobile application
+```
+
+<details>
+<summary><strong>View detailed structure</strong></summary>
 
 ```text
 ./
@@ -299,10 +435,53 @@ AI service (`:8000`): `GET /`, `POST /predict/bone|brain|ecg|heart|chest|skin`.
 └── app/               # bare React Native CLI (App.tsx, LoginScreen.tsx, android/, ios/)
 ```
 
+</details>
+
 ---
 
-## 🛡️ Privacy & HIPAA Compliance
+## 🔐 Security & Privacy
 
-* **Secure Authentication:** JWT (30-day) + bcrypt + NextAuth sessions; proxy-header trust only from the Next.js server; seeded verified doctors.
-* **Onboarding Consent:** Patients review **Terms of Clinical Use** and **Privacy Policy** (`/terms-of-clinical-use`, `/privacy-policy`) regarding AI-generated recommendations.
-* **HIPAA Guardrails:** `/hipaa-compliance` page stresses AI outputs are assistive / research-only and must be verified by a licensed clinician. Do not commit real secrets (live `backend/.env` and `frontend/.env` in this workspace contain real Groq/R2 keys and must be rotated if shared).
+- **Authentication:** JWT (30-day expiry) + bcrypt password hashing + NextAuth (JWT strategy, Credentials provider). The Next.js API proxy injects `x-user-id` / `x-user-role`, which the backend trusts for most `/api/*` routes.
+- **Storage:** PostgreSQL for structured data; Cloudflare R2 (S3-compatible) for avatars, scans, reports, and conversation audio.
+- **Uploads:** `multer` memory storage with size limits (e.g. 10 MB profile images, 20 MB scans) before streaming to R2.
+- **Secrets:** all credentials live in environment variables (`backend/.env`, `frontend/.env`, `ai_models/.env`, `app/.env.example`). Never commit populated `.env` files.
+- **Consent & legal pages:** public `/terms-of-clinical-use`, `/privacy-policy`, and `/hipaa-compliance` pages; onboarding includes consent review.
+
+> ⚠️ HippoHealth includes a dedicated HIPAA/compliance information page and security-oriented controls, but this repository should not be interpreted as independently certified HIPAA-compliant.
+
+---
+
+## ⚠️ Medical Disclaimer
+
+HippoHealth is an AI-assisted healthcare technology project intended for research, educational, and decision-support purposes. AI-generated predictions, explanations, and recommendations are **not** a substitute for professional medical diagnosis or treatment. Clinical decisions must be made by qualified healthcare professionals. No regulatory or clinical validation is claimed.
+
+---
+
+## 🗺️ Roadmap
+
+Planned / future ideas (not currently implemented):
+
+- [ ] Production deployment
+- [ ] Automated testing expansion
+- [ ] Background health synchronization (mobile sync is currently manual)
+- [ ] Improved model evaluation
+- [ ] Expanded clinical datasets
+
+---
+
+## 🤝 Contributing
+
+1. Fork the repository.
+2. Create a feature branch (`git checkout -b feature/my-change`).
+3. Make your changes.
+4. Run linting where available (`npm run lint` in `frontend/` and `app/`).
+5. Commit your changes with a clear message.
+6. Open a pull request describing what changed and why.
+
+> Note: `backend` currently has no real test script (`npm test` exits with an error), and `app` uses `jest`/`eslint` via its React Native toolchain. Do not commit secrets or `.env` files.
+
+---
+
+## 📄 License
+
+This project does not currently include a license. Please contact the maintainers before using, modifying, or redistributing the code.
