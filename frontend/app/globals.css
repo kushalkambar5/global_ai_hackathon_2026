@@ -245,3 +245,14 @@
   color: var(--text-muted-more) !important;
 }
 
+/* --- Dev stealth: hide Next.js bottom-left indicator / issue badge ---
+   Only matches dev-only elements (`nextjs-portal`), so production is unaffected.
+   Intentional conceal (not fix) of the `bis_skin_checked` hydration noise. */
+nextjs-portal,
+#__next-devtools,
+[data-nextjs-dev-overlay],
+[data-next-devtools],
+#__next-build-watcher {
+  display: none !important;
+}
+

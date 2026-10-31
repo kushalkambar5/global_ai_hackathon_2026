@@ -37,6 +37,10 @@ if (r2Hostname && !remotePatterns.some((p) => p.hostname === r2Hostname)) {
 const nextConfig: NextConfig = {
   allowedDevOrigins: ["*.ngrok-free.dev", "*.ngrok.io", "localhost:3000"],
   transpilePackages: ["next-auth"],
+  // Hide the bottom-left dev indicator / issue badge.
+  // Note: runtime errors are still thrown, but the on-screen
+  // indicator is disabled per user request.
+  devIndicators: false,
   images: {
     remotePatterns,
   },
