@@ -57,11 +57,31 @@ export default function OnboardingPage() {
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<{ [key: string]: string }>({});
 
-  // Helpers for date limits (range of 0 to 150 years old)
-  const todayObj = new Date();
-  const maxDateStr = todayObj.toISOString().split("T")[0];
-  const minDateObj = new Date(todayObj.getFullYear() - 150, todayObj.getMonth(), todayObj.getDate());
-  const minDateStr = minDateObj.toISOString().split("T")[0];
+  // Helpers for date limits and age validation
+  const formatDateStr = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  const todayDate = new Date();
+  const maxDateStr = formatDateStr(todayDate);
+  const minDate = new Date(todayDate.getFullYear() - 150, todayDate.getMonth(), todayDate.getDate());
+  const minDateStr = formatDateStr(minDate);
+
+  const calculateAge = (dobString: string): number => {
+    if (!dobString) return -1;
+    const birthDate = new Date(dobString);
+    if (isNaN(birthDate.getTime())) return -1;
+    const now = new Date();
+    let age = now.getFullYear() - birthDate.getFullYear();
+    const monthDiff = now.getMonth() - birthDate.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    return age;
+  };
 
   // Pre-fill fullName from session
   useEffect(() => {
@@ -84,55 +104,7 @@ export default function OnboardingPage() {
     }
   }, [session]);
 
-  // Calculate Age details helper
-  const calculateAgeDetails = (dobStr: string) => {
-    if (!dobStr) return null;
-    const parts = dobStr.split("-");
-    if (parts.length !== 3) {
-      return { age: null, valid: false, error: "Invalid date format." };
-    }
-    const year = parseInt(parts[0], 10);
-    const month = parseInt(parts[1], 10) - 1;
-    const day = parseInt(parts[2], 10);
-
-    if (isNaN(year) || isNaN(month) || isNaN(day)) {
-      return { age: null, valid: false, error: "Invalid date format." };
-    }
-
-    const birthDate = new Date(year, month, day);
-    // JavaScript's new Date(year, month, day) maps 2-digit/1-digit years (0-99) to 1900-1999.
-    // Call setFullYear to accurately reflect years 0000-0099 (e.g. 0001 AD).
-    if (year >= 0 && year <= 99) {
-      birthDate.setFullYear(year);
-    }
-
-    if (isNaN(birthDate.getTime())) {
-      return { age: null, valid: false, error: "Invalid date format." };
-    }
-
-    const today = new Date();
-    const todayZero = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    const birthZero = new Date(birthDate.getFullYear(), birthDate.getMonth(), birthDate.getDate());
-
-    if (birthZero > todayZero) {
-      return { age: null, valid: false, error: "Date of birth cannot be in the future (age must be between 0 and 150)." };
-    }
-
-    let age = today.getFullYear() - birthDate.getFullYear();
-    const m = today.getMonth() - birthDate.getMonth();
-    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
-      age--;
-    }
-
-    if (age < 0) {
-      return { age: null, valid: false, error: "Date of birth cannot be in the future (age must be between 0 and 150)." };
-    }
-    if (age > 150) {
-      return { age, valid: false, error: "Age must be realistic (between 0 and 150 years)." };
-    }
-
-    return { age, valid: true, error: null };
-  };
+  
 
   // Calculate live BMI
   const calculateBmiPreview = (heightStr: string, weightStr: string) => {
@@ -208,9 +180,9 @@ export default function OnboardingPage() {
       if (!dob) {
         errors.dob = "Date of birth is required.";
       } else {
-        const ageInfo = calculateAgeDetails(dob);
-        if (!ageInfo || !ageInfo.valid) {
-          errors.dob = ageInfo?.error || "Please enter a valid date of birth.";
+        const age = calculateAge(dob);
+        if (age < 0 || age > 150) {
+          errors.dob = "Age must be between 0 and 150 years.";
         }
       }
 
@@ -268,12 +240,7 @@ export default function OnboardingPage() {
             errors.yearsExperience = "Years of experience cannot be negative.";
           } else if (exp > 70) {
             errors.yearsExperience = "Years of experience cannot exceed 70.";
-          } else {
-            const ageInfo = calculateAgeDetails(dob);
-            if (ageInfo?.age !== null && ageInfo?.age !== undefined && ageInfo.age - 18 < exp) {
-              errors.yearsExperience = `Experience cannot exceed ${Math.max(0, ageInfo.age - 18)} years based on your age.`;
-            }
-          }
+          } 
         }
       }
     }
@@ -464,55 +431,19 @@ export default function OnboardingPage() {
                   min={minDateStr}
                   value={dob}
                   onChange={(e) => {
-                    const value = e.target.value;
-                    setDob(value);
-                    if (value) {
-                      const ageInfo = calculateAgeDetails(value);
-                      if (ageInfo && !ageInfo.valid) {
-                        setFieldErrors((prev) => ({
-                          ...prev,
-                          dob: ageInfo.error || "Age must be realistic (between 0 and 150 years).",
-                        }));
-                      } else {
-                        clearFieldError("dob");
-                      }
-                    } else {
-                      clearFieldError("dob");
-                    }
+                    setDob(e.target.value);
+                    clearFieldError("dob");
                   }}
                   className={`block w-full px-4 py-3 bg-white border ${
                     fieldErrors.dob ? "border-red-500 ring-1 ring-red-500" : "border-[#DCD5C5]"
                   } rounded-xl text-[#1C1B18] focus:outline-hidden focus:ring-2 focus:ring-[#8C6B1F]/30 focus:border-[#8C6B1F] transition-all text-sm`}
                 />
-                {(() => {
-                  const ageInfo = calculateAgeDetails(dob);
-                  if (fieldErrors.dob) {
-                    return (
-                      <p className="mt-1.5 text-xs text-red-600 font-sans flex items-center gap-1">
-                        <MaterialIcon name="error" className="text-sm" />
-                        <span>{fieldErrors.dob}</span>
-                      </p>
-                    );
-                  }
-                  if (ageInfo) {
-                    if (ageInfo.valid) {
-                      return (
-                        <p className="mt-1.5 text-xs font-medium text-[#137333] flex items-center gap-1">
-                          <MaterialIcon name="cake" className="text-sm text-[#137333]" />
-                          <span>Calculated Age: <strong>{ageInfo.age} {ageInfo.age === 1 ? "year" : "years"} old</strong></span>
-                        </p>
-                      );
-                    } else {
-                      return (
-                        <p className="mt-1.5 text-xs text-red-600 font-sans flex items-center gap-1">
-                          <MaterialIcon name="warning" className="text-sm" />
-                          <span>{ageInfo.error}</span>
-                        </p>
-                      );
-                    }
-                  }
-                  return null;
-                })()}
+                {fieldErrors.dob && (
+                  <p className="mt-1.5 text-xs text-red-600 font-sans flex items-center gap-1">
+                    <MaterialIcon name="error" className="text-sm" />
+                    <span>{fieldErrors.dob}</span>
+                  </p>
+                )}
               </div>
 
               {/* Gender */}

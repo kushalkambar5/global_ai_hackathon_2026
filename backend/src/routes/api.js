@@ -276,8 +276,8 @@ router.post('/onboarding', authenticateProxyUser, upload.single('profileImage'),
       const m = today.getMonth() - birthDate.getMonth();
       if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--;
 
-      if (age < 0 || age > 150) {
-        return res.status(400).json({ message: 'Age must be between 0 and 150 years.' });
+      if (age < 0 || age > 130) {
+        return res.status(400).json({ message: 'Age must be between 0 and 130 years.' });
       }
     }
 
@@ -558,8 +558,8 @@ router.post('/doctor/update-patient-profile', authenticateProxyUser, async (req,
       const m = today.getMonth() - birthDate.getMonth();
       if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--;
 
-      if (age < 0 || age > 150) {
-        return res.status(400).json({ message: 'Age must be between 0 and 150 years.' });
+      if (age < 0 || age > 130) {
+        return res.status(400).json({ message: 'Age must be between 0 and 130 years.' });
       }
     }
 
