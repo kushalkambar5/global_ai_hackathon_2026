@@ -1,10 +1,5 @@
 import os
 import io
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-except ImportError:
-    pass
 import torch
 import torch.nn as nn
 import xgboost as xgb
@@ -16,7 +11,17 @@ from ultralytics import YOLO
 import torchxrayvision as xrv
 from pydantic import BaseModel
 from typing import List
-from contextlib import asynccontextmanager
+
+app = FastAPI(title="AI Digital Twin Medical Models API", version="1.0")
+
+# CORS for frontend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # ==========================================
 # MODEL DEFINITIONS & LOADING
@@ -62,126 +67,46 @@ heart_model = None
 chest_model = None
 skin_model = None
 
+@app.on_event("startup")
 def load_models():
     global bone_model, brain_model, ecg_model, heart_model, chest_model, skin_model
-
+    
     # 1. Bone Fracture Model
-    try:
-        bone_path = os.path.join(MODELS_DIR, "best_fracture_classifier.pt")
-        if os.path.exists(bone_path):
-            print("Loading bone model...", flush=True)
-            bone_model = YOLO(bone_path)
-            print("Bone model loaded.", flush=True)
-        else:
-            print(f"WARNING: bone model not found at {bone_path}", flush=True)
-    except Exception as e:
-        print(f"ERROR loading bone model: {e}", flush=True)
-
+    bone_path = os.path.join(MODELS_DIR, "best_fracture_classifier.pt")
+    if os.path.exists(bone_path):
+        bone_model = YOLO(bone_path)
+        
     # 2. Brain Tumor Model
-    try:
-        brain_path = os.path.join(MODELS_DIR, "best_brain_tumor_model.pt")
-        if os.path.exists(brain_path):
-            print("Loading brain model...", flush=True)
-            brain_model = YOLO(brain_path)
-            print("Brain model loaded.", flush=True)
-        else:
-            print(f"WARNING: brain model not found at {brain_path}", flush=True)
-    except Exception as e:
-        print(f"ERROR loading brain model: {e}", flush=True)
-
+    brain_path = os.path.join(MODELS_DIR, "best_brain_tumor_model.pt")
+    if os.path.exists(brain_path):
+        brain_model = YOLO(brain_path)
+        
     # 3. ECG Model
-    try:
-        ecg_path = os.path.join(MODELS_DIR, "best_ecg_model.pth")
-        if os.path.exists(ecg_path):
-            print("Loading ECG model...", flush=True)
-            ecg_model = ECG_1D_CNN()
-            ecg_model.load_state_dict(torch.load(ecg_path, map_location=torch.device('cpu')))
-            ecg_model.eval()
-            print("ECG model loaded.", flush=True)
-        else:
-            print(f"WARNING: ECG model not found at {ecg_path}", flush=True)
-    except Exception as e:
-        print(f"ERROR loading ECG model: {e}", flush=True)
-
+    ecg_path = os.path.join(MODELS_DIR, "best_ecg_model.pth")
+    if os.path.exists(ecg_path):
+        ecg_model = ECG_1D_CNN()
+        ecg_model.load_state_dict(torch.load(ecg_path, map_location=torch.device('cpu')))
+        ecg_model.eval()
+        
     # 4. Heart XGBoost Model
-    try:
-        heart_path = os.path.join(MODELS_DIR, "heart_xgb_model.json")
-        if os.path.exists(heart_path):
-            print("Loading heart model...", flush=True)
-            heart_model = xgb.XGBClassifier()
-            heart_model.load_model(heart_path)
-            print("Heart model loaded.", flush=True)
-        else:
-            print(f"WARNING: heart model not found at {heart_path}", flush=True)
-    except Exception as e:
-        print(f"ERROR loading heart model: {e}", flush=True)
-
-    # 5. Chest X-Ray Model (lazy - loaded on first /predict/chest call
-    # to avoid blocking server startup with a large download)
-    # See get_chest_model() below.
-    print("Chest model will lazy-load on first request.", flush=True)
-
+    heart_path = os.path.join(MODELS_DIR, "heart_xgb_model.json")
+    if os.path.exists(heart_path):
+        heart_model = xgb.XGBClassifier()
+        heart_model.load_model(heart_path)
+        
+    # 5. Chest X-Ray Model
+    # Automatically downloads weights if not present locally
+    chest_model = xrv.models.DenseNet(weights="densenet121-res224-all")
+    chest_model.eval()
+    
     # 6. Skin Disease Model
-    try:
-        skin_path = os.path.join(MODELS_DIR, "best.pt")
-        if os.path.exists(skin_path):
-            print("Loading skin model...", flush=True)
-            skin_model = YOLO(skin_path)
-            print("Skin model loaded.", flush=True)
-        else:
-            print(f"WARNING: skin model not found at {skin_path}", flush=True)
-    except Exception as e:
-        print(f"ERROR loading skin model: {e}", flush=True)
-
-
-def get_chest_model():
-    """Lazy-load chest model so startup never blocks on download."""
-    global chest_model
-    if chest_model is None:
-        print("Loading chest model (first request)...", flush=True)
-        chest_model = xrv.models.DenseNet(weights="densenet121-res224-all")
-        chest_model.eval()
-        print("Chest model loaded.", flush=True)
-    return chest_model
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    print("Starting model loading...", flush=True)
-    load_models()
-    print("Model loading finished. Server ready.", flush=True)
-    yield
-    print("Shutting down.", flush=True)
-
-
-app = FastAPI(title="AI Digital Twin Medical Models API", version="1.0", lifespan=lifespan)
-
-# CORS for frontend
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+    skin_path = os.path.join(MODELS_DIR, "best.pt")
+    if os.path.exists(skin_path):
+        skin_model = YOLO(skin_path)
 
 @app.get("/")
 def home():
     return {"message": "AI Digital Twin Medical Models API is running!"}
-
-@app.get("/health")
-def health():
-    return {
-        "status": "ok",
-        "models": {
-            "bone": bone_model is not None,
-            "brain": brain_model is not None,
-            "ecg": ecg_model is not None,
-            "heart": heart_model is not None,
-            "chest": chest_model is not None,
-            "skin": skin_model is not None,
-        },
-    }
 
 # ==========================================
 # ENDPOINTS
@@ -305,10 +230,8 @@ def predict_heart(request: HeartRequest):
 
 @app.post("/predict/chest")
 async def predict_chest(file: UploadFile = File(...)):
-    try:
-        model = get_chest_model()
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Chest model failed to load: {e}")
+    if chest_model is None:
+        raise HTTPException(status_code=500, detail="Chest model not loaded")
         
     image_bytes = await file.read()
     
@@ -330,9 +253,9 @@ async def predict_chest(file: UploadFile = File(...)):
     img_tensor = torch.from_numpy(img).unsqueeze(0) # Add batch dimension
     
     with torch.no_grad():
-        outputs = model(img_tensor)
+        outputs = chest_model(img_tensor)
         
-    results = dict(zip(model.pathologies, outputs[0].detach().numpy()))
+    results = dict(zip(chest_model.pathologies, outputs[0].detach().numpy()))
     
     # Convert numpy floats to native python floats for JSON serialization
     results_serializable = {k: round(float(v) * 100, 2) for k, v in results.items()}
@@ -364,7 +287,4 @@ async def predict_skin(file: UploadFile = File(...)):
 
 if __name__ == "__main__":
     import uvicorn
-    host = os.getenv("HOST", "0.0.0.0")
-    port = int(os.getenv("PORT", "8000"))
-    uvicorn.run(app, host=host, port=port)
-
+    uvicorn.run(app, host="0.0.0.0", port=8000)

@@ -380,10 +380,10 @@ export default function DiseaseDetector() {
   // Sub-navigation models list
   const models = [
     { id: "bone", label: "Bone Fracture", icon: "orthopedics", desc: "Bone Fracture Detection (YOLOv11)" },
-    { id: "brain", label: "Brain Tumor", icon: "psychology", desc: "MRI Scan Tumor Box Segmenter (YOLOv11)" },
+    { id: "chest", label: "Chest Pathology", icon: "pulmonology", desc: "Chest X-Ray pathologies (DenseNet121)" },
     { id: "ecg", label: "ECG Classifier", icon: "show_chart", desc: "Arrhythmia Classification (1D-CNN)" },
     { id: "heart", label: "Heart Disease", icon: "favorite", desc: "Heart Risk Evaluator (XGBoost)" },
-    { id: "chest", label: "Chest Pathology", icon: "pulmonology", desc: "Chest X-Ray pathologies (DenseNet121)" },
+    { id: "brain", label: "Brain Tumor", icon: "psychology", desc: "MRI Scan Tumor Box Segmenter (YOLOv11)" },
     { id: "skin", label: "Skin Lesions", icon: "vaccines", desc: "Skin Cancer & Rash Classifier (YOLOv11)" },
   ];
 
