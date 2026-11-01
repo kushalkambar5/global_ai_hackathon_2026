@@ -8,7 +8,6 @@ dotenv.config();
 const connectionString = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/hippohealth';
 const pool = new pg.Pool({
   connectionString,
-  password: 'postgres',
 });
 
 export const db = drizzle(pool, { schema });

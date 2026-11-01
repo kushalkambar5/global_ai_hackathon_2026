@@ -1881,7 +1881,7 @@ router.post('/conversations/record', authenticateProxyUser, upload.single('audio
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            model: process.env.OPENAI_MODEL || 'llama-3.3-70b-versatile',
+            model: process.env.OPENAI_MODEL || 'openai/gpt-oss-120b',
             messages: [
               { role: 'system', content: 'You are a medical assistant. Respond ONLY with raw JSON, no markdown.' },
               { role: 'user', content: `Analyze this doctor-patient conversation transcript and extract: 1) A concise medical summary 2) A list of medications mentioned.\n\nTranscript:\n${transcript}\n\nRespond ONLY with raw JSON: {"summary": "...", "medications": ["med1", "med2"]}` }

@@ -22,7 +22,26 @@ const PORT = process.env.PORT || 5000;
 const server = http.createServer(app);
 
 // Initialize Chat WebSocket
-initChatWebSocket(server);
+const wss = initChatWebSocket(server);
+
+// Friendly startup errors (e.g. port already in use) instead of an
+// unhandled 'error' crash. Note: ws forwards http-server errors to the
+// WebSocketServer, so both emitters need listeners.
+function handleListenError(err) {
+  if (err && err.code === 'EADDRINUSE') {
+    console.error(`[Server Error] Port ${PORT} is already in use. Stop the other process or run with a different port (e.g. $env:PORT=5001; npm run dev).`);
+    process.exit(1);
+  }
+  console.error('[Server Error]', err);
+  process.exit(1);
+}
+server.on('error', handleListenError);
+wss.on('error', (err) => {
+  // EADDRINUSE is already reported by the http server handler above; just avoid the unhandled throw.
+  if (!err || err.code !== 'EADDRINUSE') {
+    console.error('[WebSocket Server Error]', err);
+  }
+});
 
 // Middleware
 app.use(cors());

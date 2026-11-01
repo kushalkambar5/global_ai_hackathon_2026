@@ -305,6 +305,44 @@ function normalizeStoredChats(rawChats) {
 }
 
 /**
+ * Truncate a string to `max` chars (adds ellipsis). Used to keep the LLM
+ * prompt under Groq's TPM limit (e.g. 8k for gpt-oss-120b on_demand tier).
+ */
+function truncateText(value, max = 300) {
+  if (value === null || value === undefined) return 'None';
+  const s = typeof value === 'string' ? value : JSON.stringify(value);
+  if (s.length <= max) return s;
+  return s.slice(0, max) + '…';
+}
+
+/**
+ * True when an SDK error is a token/rate-limit overflow (HTTP 413 or TPM).
+ * Groq surfaces these as 413 "Request too large" mentioning tokens per minute.
+ */
+function isTokenLimitError(err) {
+  const msg = `${err?.message || ''} ${err?.detail || ''} ${err?.status || ''} ${err?.code || ''}`;
+  return /413|request too large|tokens per minute|reduce your message size|context_length_exceeded|token.*limit/i.test(msg);
+}
+
+/**
+ * One-line compact summary of a health_metrics row.
+ * Deliberately omits verbose fields (sleepStages arrays, ids, timestamps)
+ * and null values — those were the main TPM overflow driver.
+ */
+function formatMetricCompact(m) {
+  const parts = [];
+  if (m.metricDate) parts.push(`${m.metricDate}`);
+  if (m.steps != null) parts.push(`steps ${m.steps}`);
+  if (m.heartRateAvg != null) parts.push(`HR avg ${m.heartRateAvg}${m.heartRateMin != null || m.heartRateMax != null ? ` (${m.heartRateMin ?? '?'}–${m.heartRateMax ?? '?'})` : ''}`);
+  if (m.spo2Percentage != null) parts.push(`SpO2 ${m.spo2Percentage}%`);
+  if (m.sleepDurationMinutes != null) parts.push(`sleep ${m.sleepDurationMinutes}min`);
+  if (m.caloriesBurnt != null) parts.push(`${m.caloriesBurnt}kcal`);
+  if (m.distanceMeters != null) parts.push(`${m.distanceMeters}m`);
+  if (m.sleepStages && Array.isArray(m.sleepStages)) parts.push(`sleep stages: ${m.sleepStages.length} segments`);
+  return parts.length > 0 ? `• ${parts.join(' | ')}` : null;
+}
+
+/**
  * GET /api/chat/history
  * Returns the stored ai_chats record for the authenticated user
  * Response shape (always): { chats: [...up to 10...], chatSummary: string|null, updatedAt }
@@ -400,9 +438,14 @@ router.post('/', async (req, res) => {
       }
     }
 
-    // Pre-fetch comprehensive patient clinical context (Reports, Scans, Profile, Metrics)
+    // Pre-fetch compact patient clinical context (Reports, Scans, Profile, Metrics).
+    // NOTE: Groq's on_demand tier caps TPM low (e.g. ~8000 for gpt-oss-120b), so every
+    // field below is budgeted: compact one-line summaries, hard limits, and
+    // truncation. Verbose blobs (sleepStages arrays, full JSON dumps, long AI
+    // explanations) previously pushed "hi" to 9378 tokens → HTTP 413 → 500.
     let patientContextStr = '';
     let patientName = '';
+    let minimalContextStr = '';
 
     if (patientId) {
       try {
@@ -410,7 +453,7 @@ router.post('/', async (req, res) => {
         if (patient) {
           patientName = patient.fullName;
 
-          // 1. Fetch submitted medical reports
+          // 1. Fetch submitted medical reports (latest 3 only — truncated)
           const reports = await db
             .select({
               id: medicalReports.id,
@@ -427,9 +470,10 @@ router.post('/', async (req, res) => {
             .from(medicalReports)
             .where(eq(medicalReports.patientId, patientId))
             .orderBy(desc(medicalReports.uploadedAt))
-            .limit(10);
+            .limit(3);
 
-          // 2. Fetch AI disease scan results (detection models: fracture, brain tumor, ECG, heart risk, skin, chest)
+          // 2. Fetch AI disease scan results (latest 12 for digest accuracy;
+          // only the top 6 get a detailed line — the digest covers all types)
           const scans = await db
             .select({
               id: diseaseScans.id,
@@ -446,25 +490,54 @@ router.post('/', async (req, res) => {
             .from(diseaseScans)
             .where(eq(diseaseScans.patientId, patientId))
             .orderBy(desc(diseaseScans.createdAt))
-            .limit(20);
+            .limit(12);
 
-          // 3. Fetch recent health metrics
+          // 3. Fetch recent health metrics (latest 3, compact formatting)
           const metrics = await db
-            .select()
+            .select({
+              metricDate: healthMetrics.metricDate,
+              steps: healthMetrics.steps,
+              heartRateAvg: healthMetrics.heartRateAvg,
+              heartRateMin: healthMetrics.heartRateMin,
+              heartRateMax: healthMetrics.heartRateMax,
+              spo2Percentage: healthMetrics.spo2Percentage,
+              sleepDurationMinutes: healthMetrics.sleepDurationMinutes,
+              caloriesBurnt: healthMetrics.caloriesBurnt,
+              distanceMeters: healthMetrics.distanceMeters,
+              sleepStages: healthMetrics.sleepStages,
+            })
             .from(healthMetrics)
             .where(eq(healthMetrics.patientId, patientId))
             .orderBy(desc(healthMetrics.metricDate))
-            .limit(7);
+            .limit(3);
 
-          // 4. Fetch body map conditions
+          // 4. Fetch body map conditions (compact, max 5)
           const conditions = await db
-            .select()
+            .select({
+              bodyPartId: bodyMapConditions.bodyPartId,
+              conditionName: bodyMapConditions.conditionName,
+              severity: bodyMapConditions.severity,
+            })
             .from(bodyMapConditions)
-            .where(and(eq(bodyMapConditions.patientId, patientId), eq(bodyMapConditions.isActive, true)));
+            .where(and(eq(bodyMapConditions.patientId, patientId), eq(bodyMapConditions.isActive, true)))
+            .limit(5);
+
+          const getDiagnosis = (s) => {
+            const p = s.predictionResult;
+            if (!p) return 'Unknown / Normal';
+            if (typeof p === 'string') return truncateText(p, 120);
+            if (p.diagnosis) return truncateText(p.diagnosis, 120);
+            if (p.diagnosis_result) return truncateText(p.diagnosis_result, 120);
+            if (p.tumor_found) return 'Brain Tumor Detected';
+            if (p.risk_prediction === 1) return 'High Risk of Heart Disease';
+            if (p.risk_prediction === 0) return 'Low Risk of Heart Disease';
+            return truncateText(JSON.stringify(p), 120);
+          };
 
           // Format AI Disease Scans into readable clinical summaries
           // Group by scan type — non-HEART types (e.g. BONE_FRACTURE) get listed first
           let scanSummaries = [];
+          let scanDigest = '';
           if (scans.length > 0) {
             // Sort: non-HEART scans first, then HEART scans (so BONE_FRACTURE etc. are never buried)
             const sorted = [...scans].sort((a, b) => {
@@ -478,78 +551,64 @@ router.post('/', async (req, res) => {
             for (const s of sorted) {
               if (!uniqueTypes[s.scanType]) uniqueTypes[s.scanType] = s;
             }
-            const digestLines = Object.values(uniqueTypes).map(s => {
-              let diagnosis = 'Unknown';
-              if (s.predictionResult) {
-                if (s.predictionResult.diagnosis) diagnosis = s.predictionResult.diagnosis;
-                else if (s.predictionResult.diagnosis_result) diagnosis = s.predictionResult.diagnosis_result;
-                else if (s.predictionResult.tumor_found) diagnosis = 'Brain Tumor Detected';
-                else if (s.predictionResult.risk_prediction === 1) diagnosis = 'High Risk of Heart Disease';
-                else if (s.predictionResult.risk_prediction === 0) diagnosis = 'Low Risk of Heart Disease';
-                else diagnosis = JSON.stringify(s.predictionResult);
-              }
-              return `  → ${s.scanType}: ${diagnosis}`;
-            });
-            scanSummaries.push(`SCAN TYPE SUMMARY (${sorted.length} total scans across ${Object.keys(uniqueTypes).length} type(s)):\n${digestLines.join('\n')}`);
+            const digestLines = Object.values(uniqueTypes).map(s => `  → ${s.scanType}: ${getDiagnosis(s)}`);
+            scanDigest = `SCAN TYPE SUMMARY (${sorted.length} recent of total; types: ${Object.keys(uniqueTypes).join(', ')}):\n${digestLines.join('\n')}`;
+            scanSummaries.push(scanDigest);
 
-            for (const s of sorted) {
-              let diagnosis = 'Unknown / Normal';
-              if (s.predictionResult) {
-                if (s.predictionResult.diagnosis) diagnosis = s.predictionResult.diagnosis;
-                else if (s.predictionResult.diagnosis_result) diagnosis = s.predictionResult.diagnosis_result;
-                else if (s.predictionResult.tumor_found) diagnosis = 'Brain Tumor Detected';
-                else if (s.predictionResult.risk_prediction === 1) diagnosis = 'High Risk of Heart Disease';
-                else if (s.predictionResult.risk_prediction === 0) diagnosis = 'Low Risk of Heart Disease';
-                else diagnosis = typeof s.predictionResult === 'string' ? s.predictionResult : JSON.stringify(s.predictionResult);
-              }
+            // Detail lines capped at 6 to bound tokens (digest above preserves coverage)
+            for (const s of sorted.slice(0, 6)) {
               scanSummaries.push(
-                `• [Scan ID: ${s.id}] [Scan Type: ${s.scanType}] Result/Diagnosis: ${diagnosis} | Status: ${s.status} | Date: ${s.createdAt ? new Date(s.createdAt).toISOString().slice(0, 10) : 'N/A'}\n` +
-                `  - AI Explanation: ${s.aiExplanation || 'None'}\n` +
-                `  - Medicines Recommended: ${Array.isArray(s.medicines) && s.medicines.length > 0 ? s.medicines.join(', ') : 'None'}\n` +
-                `  - AI Suggestions: ${Array.isArray(s.aiSuggestions) && s.aiSuggestions.length > 0 ? s.aiSuggestions.join('; ') : 'None'}`
+                `• [${s.scanType}] ${getDiagnosis(s)} | ${s.status} | ${s.createdAt ? new Date(s.createdAt).toISOString().slice(0, 10) : 'N/A'}` +
+                (s.aiExplanation ? ` | Note: ${truncateText(s.aiExplanation, 120)}` : '')
               );
             }
           }
 
-          // Format Submitted Medical Reports into readable clinical summaries
+          // Format Submitted Medical Reports into compact summaries
           let reportSummaries = [];
           if (reports.length > 0) {
             for (const r of reports) {
               reportSummaries.push(
-                `• [Report: ${r.title}] Type: ${r.reportType || 'General'} | Date: ${r.reportDate || (r.uploadedAt ? new Date(r.uploadedAt).toISOString().slice(0, 10) : 'N/A')}\n` +
-                `  - Description: ${r.description || 'N/A'}\n` +
-                `  - Extracted Data: ${r.extractedData ? JSON.stringify(r.extractedData) : 'None'}\n` +
-                `  - AI Summary: ${r.aiSummary ? JSON.stringify(r.aiSummary) : 'None'}\n` +
-                `  - Recommended Medicines: ${Array.isArray(r.medicines) && r.medicines.length > 0 ? r.medicines.join(', ') : 'None'}`
+                `• ${truncateText(r.title, 80)} (${r.reportType || 'General'}, ${r.reportDate || (r.uploadedAt ? new Date(r.uploadedAt).toISOString().slice(0, 10) : 'N/A')})` +
+                (r.description ? ` — ${truncateText(r.description, 150)}` : '') +
+                (r.aiSummary ? ` | Summary: ${truncateText(r.aiSummary, 200)}` : '')
               );
             }
           }
 
+          const metricLines = (metrics || []).map(formatMetricCompact).filter(Boolean);
+          const conditionLine = (conditions || []).length > 0
+            ? conditions.map(c => `${c.conditionName} (${c.bodyPartId}${c.severity ? `, ${c.severity}` : ''})`).join('; ')
+            : null;
+
           patientContextStr = `
 === PATIENT CLINICAL RECORD ===
-- Full Name: ${patient.fullName}
-- Age: ${patient.dateOfBirth ? Math.floor((Date.now() - new Date(patient.dateOfBirth)) / 3.154e10) : 'Unknown'}
-- Gender: ${patient.gender || 'Not specified'}
-- Blood Group: ${patient.bloodGroup || 'Not specified'}
-- Height: ${patient.heightCm ? patient.heightCm + ' cm' : 'Not recorded'}
-- Weight: ${patient.weightKg ? patient.weightKg + ' kg' : 'Not recorded'}
-- Allergies: ${patient.allergiesJson ? patient.allergiesJson : 'None'}
-- Chronic Conditions: ${patient.chronicConditionsJson ? patient.chronicConditionsJson : 'None'}
-- Current Medications: ${patient.currentMedicationsJson ? patient.currentMedicationsJson : 'None'}
+- Name: ${truncateText(patient.fullName, 80)} | Age: ${patient.dateOfBirth ? Math.floor((Date.now() - new Date(patient.dateOfBirth)) / 3.154e10) : 'Unknown'} | Gender: ${patient.gender || 'N/A'} | Blood: ${patient.bloodGroup || 'N/A'}
+- Allergies: ${truncateText(patient.allergiesJson || 'None', 200)} | Chronic: ${truncateText(patient.chronicConditionsJson || 'None', 200)} | Meds: ${truncateText(patient.currentMedicationsJson || 'None', 200)}
+--- SCANS (AI predictions, NOT uploads) ---
+${scanSummaries.length > 0 ? scanSummaries.join('\n') : 'No AI scans found. Use getAIDetectedDiseases tool if asked.'}
+--- REPORTS (uploads) ---
+${reportSummaries.length > 0 ? reportSummaries.join('\n') : 'No uploaded reports found.'}
+--- METRICS (latest ${metricLines.length}) ---
+${metricLines.length > 0 ? metricLines.join('\n') : 'No health metrics recorded.'}
+--- CONDITIONS ---
+${conditionLine || 'No active body map conditions.'}
+`.trim();
 
---- AI DISEASE DETECTION MODEL SCANS (disease_scans table — ${scans.length} total scans found) ---
-IMPORTANT: These are AI model predictions, NOT manual uploads. Always include ALL scan types in your response when asked.
-${scanSummaries.length > 0 ? scanSummaries.join('\n\n') : 'No AI disease detection scans found.'}
+          // Hard cap: ~4000 chars (~1000 tokens) so instructions + tools +
+          // history + reply comfortably fit in Groq's 8k TPM window.
+          if (patientContextStr.length > 4000) {
+            patientContextStr = patientContextStr.slice(0, 4000) + '\n…[truncated for token budget]';
+          }
 
---- SUBMITTED MEDICAL & LAB REPORTS (medical_reports table — ${reports.length} reports found) ---
-${reportSummaries.length > 0 ? reportSummaries.join('\n\n') : 'No submitted medical reports found.'}
-
---- RECENT HEALTH METRICS (${metrics.length} records) ---
-${metrics.length > 0 ? JSON.stringify(metrics, null, 2) : 'No health metrics recorded.'}
-
---- ACTIVE BODY MAP CONDITIONS (${conditions.length} records) ---
-${conditions.length > 0 ? JSON.stringify(conditions, null, 2) : 'No active body map conditions.'}
-`;
+          // Minimal fallback context for TPM-overflow retry (~600 chars).
+          minimalContextStr = `
+=== PATIENT (MINIMAL — token-budget retry) ===
+- Name: ${truncateText(patient.fullName, 80)}
+${scanDigest ? `--- SCAN DIGEST ---\n${truncateText(scanDigest, 800)}` : 'No AI scans on file.'}
+--- METRICS ---
+${metricLines.length > 0 ? truncateText(metricLines.slice(0, 2).join('\n'), 400) : 'No metrics.'}
+`.trim();
         }
       } catch (dbErr) {
         console.error('[Chat Context Pre-fetch Error]', dbErr);
@@ -558,13 +617,16 @@ ${conditions.length > 0 ? JSON.stringify(conditions, null, 2) : 'No active body 
 
     // System instructions for clinical agent
     // NOTE: storedSummary (ai_chats.chat_summary) is injected here so every
-    // LLM call considers prior conversation context, even when only the last
-    // 10 raw messages fit in the prompt window.
+    // LLM call considers prior conversation context. Truncate first — it is
+    // re-sent on every request and would otherwise grow tokens unbounded.
+    if (storedSummary && storedSummary.length > 600) {
+      storedSummary = storedSummary.slice(0, 600) + '…';
+    }
     const conversationMemoryBlock = storedSummary
       ? `\n--- PREVIOUS CONVERSATION SUMMARY (rolling, from ai_chats.chat_summary) ---\n${storedSummary}\nUse this summary for continuity. If the user references earlier topics ("as I said before", "my previous symptoms"), resolve them from this summary + the conversation history below.\n`
       : `\n--- PREVIOUS CONVERSATION SUMMARY ---\nNo prior summary yet (new conversation).\n`;
 
-    let instructions = `You are Hippo Chat, an expert, concise, and empathetic clinical AI assistant for Hippo Health.
+    const buildInstructions = (contextStr) => `You are Hippo Chat, an expert, concise, and empathetic clinical AI assistant for Hippo Health.
 Your goal is to provide clear, direct, and to-the-point answers to patients and healthcare professionals.
 
 STRICT CONCISENESS & BREVITY RULE:
@@ -578,13 +640,13 @@ There are TWO completely separate data sources. NEVER mix them up:
 
 1. AI DISEASE DETECTION SCANS (from the "disease_scans" table):
    - These are results from AI diagnostic models (Bone Fracture detection, Brain Tumor, ECG, Heart Disease Risk, Skin Disease, Chest X-ray).
-   - In the clinical record below, these appear under the section "AI DISEASE DETECTION MODEL SCANS".
+   - In the clinical record below, these appear under the section "SCANS".
    - When the user asks about: "disease scans", "my scans", "AI scans", "fracture", "bone", "brain tumor", "ECG", "heart scan", "skin scan", "chest scan" → READ FROM THIS SECTION ONLY.
    - To fetch more, use the getAIDetectedDiseases tool.
 
 2. UPLOADED MEDICAL & LAB REPORTS (from the "medical_reports" table):
    - These are manually uploaded files by the patient or doctor (PDFs, lab results, radiology reports).
-   - In the clinical record below, these appear under the section "SUBMITTED MEDICAL & LAB REPORTS".
+   - In the clinical record below, these appear under the section "REPORTS".
    - When the user asks about: "medical reports", "lab reports", "uploaded reports", "documents" → READ FROM THIS SECTION ONLY.
    - To fetch more, use the getMedicalReports tool.
 
@@ -606,26 +668,30 @@ Key Guidelines:
 1. Always maintain a warm, empathetic, and professional medical tone.
 2. Be direct, clear, and actionable. Keep disclaimers short (1 brief sentence).
 
-${patientContextStr}`;
+${contextStr}`;
+
+    const agentTools = [
+      getPatientProfileTool,
+      getRecentHealthMetricsTool,
+      getPatientTasksTool,
+      getMedicalReportsTool,
+      getMedicalHistoryTool,
+      getAIDetectedDiseasesTool,
+    ];
 
     // Initialize OpenAI Agent
     const agent = new Agent({
       name: 'Hippo Clinical Assistant',
       model: agentModel,
-      instructions: instructions,
-      tools: [
-        getPatientProfileTool,
-        getRecentHealthMetricsTool,
-        getPatientTasksTool,
-        getMedicalReportsTool,
-        getMedicalHistoryTool,
-        getAIDetectedDiseasesTool,
-      ],
+      instructions: buildInstructions(patientContextStr),
+      tools: agentTools,
     });
 
     // Format prompt with history context.
     // Source of truth is the DB (storedChats); client-supplied `history` is
     // merged in only to cover turns not yet persisted (deduped by content).
+    // Each turn is truncated to bound tokens (long prior AI answers with full
+    // scan lists previously blew the TPM budget on their own).
     let fullPrompt = '';
     if (patientName) {
       fullPrompt += `[Patient: ${patientName}]\n\n`;
@@ -633,7 +699,7 @@ ${patientContextStr}`;
 
     const storedHistory = storedChats.map((c) => ({
       role: c.created_by === 'ai' ? 'assistant' : 'user',
-      content: c.chat_text,
+      content: truncateText(c.chat_text, 500),
     }));
 
     let effectiveHistory = [...storedHistory];
@@ -641,29 +707,47 @@ ${patientContextStr}`;
       const seen = new Set(storedHistory.map((m) => `${m.role}::${(m.content || '').trim()}`));
       for (const msg of history) {
         if (msg && msg.role && typeof msg.content === 'string' && msg.content.trim() !== '') {
-          const key = `${msg.role}::${msg.content.trim()}`;
+          const truncated = truncateText(msg.content.trim(), 500);
+          const key = `${msg.role}::${truncated}`;
           if (!seen.has(key)) {
             seen.add(key);
-            effectiveHistory.push({ role: msg.role, content: msg.content });
+            effectiveHistory.push({ role: msg.role, content: truncated });
           }
         }
       }
     }
-    effectiveHistory = effectiveHistory.slice(-10);
+    effectiveHistory = effectiveHistory.slice(-6);
 
     if (effectiveHistory.length > 0) {
-      fullPrompt += 'Conversation History (most recent last, up to 10 turns; use with the summary above for full context):\n';
+      fullPrompt += 'Conversation History (most recent last, up to 6 turns; use with the summary above for full context):\n';
       for (const msg of effectiveHistory) {
         fullPrompt += `${String(msg.role).toUpperCase()}: ${msg.content}\n`;
       }
       fullPrompt += '\nCurrent User Message:\n';
     }
 
-    fullPrompt += message;
+    fullPrompt += truncateText(message.trim(), 1000);
 
-    // Run the OpenAI Agent
-    const agentResult = await run(agent, fullPrompt);
-    const aiResponseText = agentResult.finalOutput || 'No output produced.';
+    // Run the OpenAI Agent with a minimal-context retry on TPM overflow.
+    // Groq's free tier (e.g. 8k TPM for gpt-oss-120b) throws 413 when the prompt
+    // is too large — retry once with digest-only context and no tools.
+    let aiResponseText = '';
+    try {
+      const agentResult = await run(agent, fullPrompt);
+      aiResponseText = agentResult.finalOutput || 'No output produced.';
+    } catch (runErr) {
+      if (!isTokenLimitError(runErr)) throw runErr;
+      console.warn('[Chat TPM Overflow] Full context too large, retrying minimal:', runErr.message);
+      const retryAgent = new Agent({
+        name: 'Hippo Clinical Assistant',
+        model: agentModel,
+        instructions: buildInstructions(minimalContextStr || 'No patient context available (token budget).'),
+        tools: [],
+      });
+      const retryPrompt = `${patientName ? `[Patient: ${patientName}]\n\n` : ''}Current User Message:\n${truncateText(message.trim(), 1000)}`;
+      const retryResult = await run(retryAgent, retryPrompt);
+      aiResponseText = retryResult.finalOutput || 'No output produced.';
+    }
 
     // -------------------------------------------------------
     // Persist to ai_chats table (upsert per user, max 10 msgs)
@@ -761,6 +845,12 @@ Be concise and factual. Do not include names or greetings.\n\n` +
     });
   } catch (err) {
     console.error('[OpenAI Agent SDK Error]', err);
+    if (isTokenLimitError(err)) {
+      return res.status(413).json({
+        error: 'Chat context too large for the AI model. Please try a shorter message or clear chat history.',
+        detail: err.message,
+      });
+    }
     return res.status(500).json({
       error: 'Failed to process chat request.',
       detail: err.message,

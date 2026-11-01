@@ -60,15 +60,9 @@ HippoHealth bridges everyday patient care with precision AI diagnostics in one c
 
 ## 🎥 Demo
 
-> 🚧 Demo video coming soon — this section will host the embedded YouTube walkthrough once published.
+[![HippoHealth Demo](https://img.youtube.com/vi/6R_s02myNJs/maxresdefault.jpg)](https://youtu.be/6R_s02myNJs)
 
-<!--
-Replace the placeholder below with the YouTube embed once the video is published.
-
-Recommended format:
-
-[![HippoHealth Demo](https://img.youtube.com/vi/YOUTUBE_VIDEO_ID/maxresdefault.jpg)](https://www.youtube.com/watch?v=YOUTUBE_VIDEO_ID)
--->
+> Click the thumbnail above or watch directly: https://youtu.be/6R_s02myNJs
 
 ---
 
